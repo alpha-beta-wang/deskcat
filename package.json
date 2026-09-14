@@ -9,6 +9,7 @@
     "dist": "electron-packager . Mochi --overwrite --out=dist --app-version=0.1.0",
     "dist:win": "electron-packager . Mochi --overwrite --out=dist --platform=win32 --arch=x64 --app-version=0.1.0",
     "dist:mac": "electron-packager . Mochi --overwrite --out=dist --platform=darwin --arch=arm64 --app-version=0.1.0"
+    ,"dist:native:win": "dotnet publish native/windows/Mochi.Native.csproj -c Release -o dist/Mochi.Native-win-x64"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.6",

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+native/windows/bin/
+native/windows/obj/
 .superpowers/
 *.log
 

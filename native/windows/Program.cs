@@ -1,0 +1,204 @@
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+
+namespace Mochi.Native;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main()
+    {
+        ApplicationConfiguration.Initialize();
+        Application.Run(new MochiForm());
+    }
+}
+
+internal sealed class MochiForm : Form
+{
+    private const int WindowWidth = 200;
+    private const int WindowHeight = 135;
+    private readonly Bitmap _rest;
+    private readonly Bitmap _walk;
+    private readonly Bitmap _surface = new(WindowWidth, WindowHeight, PixelFormat.Format32bppArgb);
+    private readonly System.Windows.Forms.Timer _timer = new();
+    private readonly Random _random = new();
+    private readonly NotifyIcon _tray;
+    private Point _dragOffset;
+    private bool _dragging;
+    private bool _quiet;
+    private bool _walking;
+    private Point _walkTarget;
+    private DateTime _nextWalk;
+    private DateTime _nextBlink;
+    private DateTime _blinkEnds;
+
+    public MochiForm()
+    {
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        TopMost = true;
+        StartPosition = FormStartPosition.Manual;
+        Size = new Size(WindowWidth, WindowHeight);
+        var area = Screen.PrimaryScreen!.WorkingArea;
+        Location = new Point(area.Right - WindowWidth - 30, area.Bottom - WindowHeight - 30);
+
+        var assets = Path.Combine(AppContext.BaseDirectory, "assets", "cats");
+        _rest = new Bitmap(Path.Combine(assets, "mochi-rest.png"));
+        _walk = new Bitmap(Path.Combine(assets, "mochi-walk.png"));
+        _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
+        _nextBlink = DateTime.UtcNow.AddSeconds(4 + _random.Next(5));
+
+        var menu = new ContextMenuStrip();
+        var normal = new ToolStripMenuItem("普通模式", null, (_, _) => SetQuiet(false)) { Checked = true };
+        var quiet = new ToolStripMenuItem("安静模式", null, (_, _) => SetQuiet(true));
+        menu.Items.Add(normal);
+        menu.Items.Add(quiet);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("退出", null, (_, _) => Close());
+        menu.Opening += (_, _) => { normal.Checked = !_quiet; quiet.Checked = _quiet; };
+        ContextMenuStrip = menu;
+        _tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "Mochi", Visible = true, ContextMenuStrip = menu };
+        _tray.DoubleClick += (_, _) => Show();
+
+        _timer.Interval = 250; // idle is event-driven; no continuous 60 FPS renderer
+        _timer.Tick += (_, _) => Tick();
+        _timer.Start();
+        RenderSurface();
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x00080000; return cp; } // WS_EX_LAYERED
+    }
+
+    private void SetQuiet(bool quiet)
+    {
+        _quiet = quiet;
+        _walking = false;
+        _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
+        _timer.Interval = 250;
+        RenderSurface();
+    }
+
+    private void Tick()
+    {
+        var now = DateTime.UtcNow;
+        var changed = false;
+        if (!_quiet && !_walking && now >= _nextWalk)
+        {
+            var area = Screen.FromControl(this).WorkingArea;
+            _walkTarget = new Point(
+                Math.Clamp(Left + _random.Next(-70, 71), area.Left, area.Right - Width),
+                Math.Clamp(Top + _random.Next(-45, 46), area.Top, area.Bottom - Height));
+            _walking = true;
+            _timer.Interval = 33;
+            changed = true;
+        }
+        if (_walking)
+        {
+            var next = new Point(MoveTowards(Left, _walkTarget.X, 3), MoveTowards(Top, _walkTarget.Y, 2));
+            Location = next;
+            changed = true;
+            if (next == _walkTarget)
+            {
+                _walking = false;
+                _nextWalk = now.AddSeconds(40 + _random.Next(41));
+                _timer.Interval = 250;
+            }
+        }
+        if (!_walking && now >= _nextBlink && now >= _blinkEnds)
+        {
+            _blinkEnds = now.AddMilliseconds(220);
+            _nextBlink = now.AddSeconds(7 + _random.Next(6));
+            _timer.Interval = 40;
+            changed = true;
+        }
+        if (_blinkEnds > now)
+        {
+            changed = true;
+        }
+        else if (_blinkEnds != default)
+        {
+            _blinkEnds = default;
+            _timer.Interval = _walking ? 33 : 250;
+            changed = true;
+        }
+        if (changed) RenderSurface();
+    }
+
+    private static int MoveTowards(int value, int target, int step) => value < target ? Math.Min(value + step, target) : Math.Max(value - step, target);
+
+    private void RenderSurface()
+    {
+        using (var g = Graphics.FromImage(_surface))
+        {
+            g.Clear(Color.Transparent);
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            if (_walking)
+            {
+                g.DrawImage(_walk, new Rectangle(10, 20, 180, 94), 70, 140, 1460, 760, GraphicsUnit.Pixel);
+            }
+            else
+            {
+                var sourceX = _blinkEnds > DateTime.UtcNow ? _rest.Width / 2 : 0;
+                g.DrawImage(_rest, new Rectangle(10, 10, 180, 114), sourceX, 155, _rest.Width / 2, 560, GraphicsUnit.Pixel);
+            }
+        }
+        PresentLayered();
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (e.Button == MouseButtons.Left) { _dragging = true; _dragOffset = e.Location; }
+        if (e.Button == MouseButtons.Right) ContextMenuStrip?.Show(this, e.Location);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (_dragging && e.Button == MouseButtons.Left)
+            Location = new Point(Cursor.Position.X - _dragOffset.X, Cursor.Position.Y - _dragOffset.Y);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _walk.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_NCHITTEST = 0x0084, HTTRANSPARENT = -1;
+        if (m.Msg == WM_NCHITTEST)
+        {
+            var p = PointToClient(Cursor.Position);
+            if (p.X < 0 || p.Y < 0 || p.X >= Width || p.Y >= Height || _surface.GetPixel(p.X, p.Y).A < 24) { m.Result = (IntPtr)HTTRANSPARENT; return; }
+        }
+        base.WndProc(ref m);
+    }
+
+    private void PresentLayered()
+    {
+        var screenDc = GetDC(IntPtr.Zero);
+        var memoryDc = CreateCompatibleDC(screenDc);
+        var hBitmap = _surface.GetHbitmap(Color.FromArgb(0));
+        var old = SelectObject(memoryDc, hBitmap);
+        var size = new SIZE(Width, Height);
+        var source = new POINT(0, 0);
+        var destination = new POINT(Left, Top);
+        var blend = new BLENDFUNCTION(0, 0, 255, 1);
+        UpdateLayeredWindow(Handle, screenDc, ref destination, ref size, memoryDc, ref source, 0, ref blend, 2);
+        SelectObject(memoryDc, old); DeleteObject(hBitmap); DeleteDC(memoryDc); ReleaseDC(IntPtr.Zero, screenDc);
+    }
+
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }
+    [StructLayout(LayoutKind.Sequential)] private struct SIZE { public int cx, cy; public SIZE(int x, int y) { cx = x; cy = y; } }
+    [StructLayout(LayoutKind.Sequential, Pack = 1)] private struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; public BLENDFUNCTION(byte op, byte flags, byte alpha, byte format) { BlendOp = op; BlendFlags = flags; SourceConstantAlpha = alpha; AlphaFormat = format; } }
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc, ref POINT pprSrc, int crKey, ref BLENDFUNCTION blend, int flags);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr obj);
+}
