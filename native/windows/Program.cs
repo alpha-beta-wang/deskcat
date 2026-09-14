@@ -30,6 +30,7 @@ internal sealed class MochiForm : Form
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly Random _random = new();
     private readonly NotifyIcon _tray;
+    private readonly Icon _appIcon;
     private Point _dragOffset;
     private bool _dragging;
     private bool _quiet;
@@ -58,6 +59,8 @@ internal sealed class MochiForm : Form
         Location = new Point(area.Right - WindowWidth - 30, area.Bottom - WindowHeight - 30);
 
         var assets = Path.Combine(AppContext.BaseDirectory, "assets", "cats");
+        _appIcon = new Icon(Path.Combine(AppContext.BaseDirectory, "assets", "icons", "mochi.ico"));
+        Icon = _appIcon;
         _rest = new Bitmap(Path.Combine(assets, "mochi-rest.png"));
         _blink = new Bitmap(Path.Combine(assets, "mochi-blink.png"));
         _walk = new Bitmap(Path.Combine(assets, "mochi-walk.png"));
@@ -82,7 +85,7 @@ internal sealed class MochiForm : Form
         menu.Items.Add("退出", null, (_, _) => Close());
         menu.Opening += (_, _) => { normal.Checked = !_quiet; quiet.Checked = _quiet; };
         ContextMenuStrip = menu;
-        _tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "Mochi", Visible = true, ContextMenuStrip = menu };
+        _tray = new NotifyIcon { Icon = _appIcon, Text = "Mochi", Visible = true, ContextMenuStrip = menu };
         _tray.DoubleClick += (_, _) => Show();
 
         _timer.Interval = 250; // idle is event-driven; no continuous 60 FPS renderer
@@ -262,7 +265,7 @@ internal sealed class MochiForm : Form
     }
 
     protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
-    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _appIcon.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
 
     protected override void WndProc(ref Message m)
     {

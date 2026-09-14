@@ -5,5 +5,6 @@
   <key>CFBundleIdentifier</key><string>com.mochi.desktop-pet</string>
   <key>CFBundleName</key><string>Mochi</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>Mochi.icns</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
