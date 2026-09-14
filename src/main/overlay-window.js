@@ -13,7 +13,7 @@ function createOverlay(position) {
     movable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    focusable: false,
+    focusable: true,
     hasShadow: false,
     webPreferences: {
       nodeIntegration: true,

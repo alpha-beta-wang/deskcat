@@ -1,14 +1,11 @@
 const { ipcMain } = require('electron');
 
-// Start by ignoring the mouse (clicks pass through to the desktop). When the
-// renderer reports the pointer is over the cat, capture the mouse so drag/pet
-// work; otherwise keep ignoring. `forward: true` lets mousemove events still
-// reach the renderer so it can keep reporting hover state.
+// A small transparent window is preferable to unreliable hit-testing here.
+// On Windows, a non-focusable ignored-mouse overlay can fail to receive the
+// forwarded hover event that would turn hit-testing back on. Keep this tiny
+// window interactive so drag and the context menu always work.
 function wirePassthrough(win) {
-  win.setIgnoreMouseEvents(true, { forward: true });
-  ipcMain.on('cat:hover', (_e, over) => {
-    win.setIgnoreMouseEvents(!over, { forward: true });
-  });
+  win.setIgnoreMouseEvents(false);
 }
 
 module.exports = { wirePassthrough };

@@ -161,7 +161,10 @@ function frame(now) {
   if (state === 'walk') mover.update(dt);
   player.update(dt);
   render();
-  setTimeout(() => requestAnimationFrame(frame), state === 'walk' ? 55 : 125);
+  // Temporarily raise the cadence while blinking so the cross-fade cannot be
+  // skipped by the intentionally low idle frame rate.
+  const delay = blinkRemaining > 0 ? 33 : (state === 'walk' ? 55 : 125);
+  setTimeout(() => requestAnimationFrame(frame), delay);
 }
 
 requestAnimationFrame(frame);
