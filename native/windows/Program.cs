@@ -17,11 +17,15 @@ internal static class Program
 
 internal sealed class MochiForm : Form
 {
+    private enum MicroAction { None, SideLook, SideLie, Groom }
     private const int WindowWidth = 200;
     private const int WindowHeight = 155;
     private readonly Bitmap _rest;
     private readonly Bitmap _blink;
     private readonly Bitmap _walk;
+    private readonly Bitmap _sideLook;
+    private readonly Bitmap _sideLie;
+    private readonly Bitmap _groom;
     private readonly Bitmap _surface = new(WindowWidth, WindowHeight, PixelFormat.Format32bppArgb);
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly Random _random = new();
@@ -36,6 +40,11 @@ internal sealed class MochiForm : Form
     private DateTime _nextWalk;
     private DateTime _nextBlink;
     private DateTime _blinkEnds;
+    private MicroAction _microAction;
+    private DateTime _nextMicroAction;
+    private DateTime _microActionEnds;
+    private DateTime _nextGroomFrame;
+    private int _groomFrame;
 
     public MochiForm()
     {
@@ -51,14 +60,23 @@ internal sealed class MochiForm : Form
         _rest = new Bitmap(Path.Combine(assets, "mochi-rest.png"));
         _blink = new Bitmap(Path.Combine(assets, "mochi-blink.png"));
         _walk = new Bitmap(Path.Combine(assets, "mochi-walk.png"));
+        _sideLook = new Bitmap(Path.Combine(assets, "mochi-side-look.png"));
+        _sideLie = new Bitmap(Path.Combine(assets, "mochi-side-lie.png"));
+        _groom = new Bitmap(Path.Combine(assets, "mochi-groom.png"));
         _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
         _nextBlink = DateTime.UtcNow.AddSeconds(4 + _random.Next(5));
+        _nextMicroAction = DateTime.UtcNow.AddSeconds(18 + _random.Next(18));
 
         var menu = new ContextMenuStrip();
         var normal = new ToolStripMenuItem("普通模式", null, (_, _) => SetQuiet(false)) { Checked = true };
         var quiet = new ToolStripMenuItem("安静模式", null, (_, _) => SetQuiet(true));
         menu.Items.Add(normal);
         menu.Items.Add(quiet);
+        var actions = new ToolStripMenuItem("做个动作");
+        actions.DropDownItems.Add("侧头看看", null, (_, _) => StartMicroAction(MicroAction.SideLook));
+        actions.DropDownItems.Add("躺一会", null, (_, _) => StartMicroAction(MicroAction.SideLie));
+        actions.DropDownItems.Add("舔舔爪", null, (_, _) => StartMicroAction(MicroAction.Groom));
+        menu.Items.Add(actions);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => Close());
         menu.Opening += (_, _) => { normal.Checked = !_quiet; quiet.Checked = _quiet; };
@@ -81,6 +99,8 @@ internal sealed class MochiForm : Form
     {
         _quiet = quiet;
         _walking = false;
+        _microAction = MicroAction.None;
+        _blinkEnds = default;
         _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
         _timer.Interval = 250;
         RenderSurface();
@@ -90,7 +110,7 @@ internal sealed class MochiForm : Form
     {
         var now = DateTime.UtcNow;
         var changed = false;
-        if (!_quiet && !_walking && now >= _nextWalk)
+        if (!_quiet && !_walking && _microAction == MicroAction.None && now >= _nextWalk)
         {
             var area = Screen.FromControl(this).WorkingArea;
             _walkTarget = new Point(
@@ -116,7 +136,28 @@ internal sealed class MochiForm : Form
                 _timer.Interval = 250;
             }
         }
-        if (!_walking && now >= _nextBlink && now >= _blinkEnds)
+        if (!_quiet && !_walking && _microAction == MicroAction.None && now >= _nextMicroAction)
+        {
+            StartMicroAction((MicroAction)_random.Next(1, 4));
+            changed = true;
+        }
+        if (_microAction != MicroAction.None)
+        {
+            if (_microAction == MicroAction.Groom && now >= _nextGroomFrame)
+            {
+                _groomFrame = (_groomFrame + 1) % 3;
+                _nextGroomFrame = now.AddMilliseconds(220);
+                changed = true;
+            }
+            if (now >= _microActionEnds)
+            {
+                _microAction = MicroAction.None;
+                _nextMicroAction = now.AddSeconds(18 + _random.Next(18));
+                _timer.Interval = 250;
+                changed = true;
+            }
+        }
+        if (!_walking && _microAction == MicroAction.None && now >= _nextBlink && now >= _blinkEnds)
         {
             _blinkEnds = now.AddMilliseconds(220);
             _nextBlink = now.AddSeconds(7 + _random.Next(6));
@@ -138,6 +179,20 @@ internal sealed class MochiForm : Form
 
     private static int MoveTowards(int value, int target, int step) => value < target ? Math.Min(value + step, target) : Math.Max(value - step, target);
 
+    private void StartMicroAction(MicroAction action)
+    {
+        if (_quiet || _dragging) return;
+        _walking = false;
+        _blinkEnds = default;
+        _microAction = action;
+        var now = DateTime.UtcNow;
+        _microActionEnds = now.AddSeconds(action == MicroAction.SideLook ? 3 : action == MicroAction.SideLie ? 7 : 5);
+        _groomFrame = 0;
+        _nextGroomFrame = now;
+        _timer.Interval = action == MicroAction.Groom ? 80 : 250;
+        RenderSurface();
+    }
+
     private void RenderSurface()
     {
         using (var g = Graphics.FromImage(_surface))
@@ -149,9 +204,16 @@ internal sealed class MochiForm : Form
                 var frameWidth = _walk.Width / 4;
                 g.DrawImage(_walk, new Rectangle(17, 12, 165, 131), _walkFrame * frameWidth, 120, frameWidth, 430, GraphicsUnit.Pixel);
             }
+            else if (_microAction == MicroAction.Groom)
+            {
+                var frameWidth = _groom.Width / 3;
+                // Grooming is deliberately a little smaller than the resting pose;
+                // its raised paw must not make Mochi visually "pop" larger.
+                g.DrawImage(_groom, new Rectangle(20, 18, 160, 120), _groomFrame * frameWidth, 100, frameWidth, 540, GraphicsUnit.Pixel);
+            }
             else
             {
-                var pose = _blinkEnds > DateTime.UtcNow ? _blink : _rest;
+                var pose = _microAction == MicroAction.SideLook ? _sideLook : _microAction == MicroAction.SideLie ? _sideLie : _blinkEnds > DateTime.UtcNow ? _blink : _rest;
                 g.DrawImage(pose, new Rectangle(10, 18, 180, 120), 0, 0, pose.Width, pose.Height, GraphicsUnit.Pixel);
             }
         }
@@ -161,7 +223,7 @@ internal sealed class MochiForm : Form
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left) { _dragging = true; _dragOffset = e.Location; }
+        if (e.Button == MouseButtons.Left) { _dragging = true; _dragOffset = e.Location; _walking = false; _microAction = MicroAction.None; _blinkEnds = default; _timer.Interval = 250; RenderSurface(); }
         if (e.Button == MouseButtons.Right) ContextMenuStrip?.Show(this, e.Location);
     }
 
@@ -173,7 +235,7 @@ internal sealed class MochiForm : Form
     }
 
     protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
-    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
 
     protected override void WndProc(ref Message m)
     {

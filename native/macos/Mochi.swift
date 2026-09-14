@@ -61,35 +61,65 @@ final class MochiPanel: NSPanel {
 }
 
 final class PetHostView: NSView {
+    private enum MicroAction { case none, sideLook, sideLie, groom }
     var quiet = false
     private let rest = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-rest", ofType: "png", inDirectory: "assets/cats")!)!
     private let blink = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-blink", ofType: "png", inDirectory: "assets/cats")!)!
     private let walk = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-walk", ofType: "png", inDirectory: "assets/cats")!)!
+    private let sideLook = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-side-look", ofType: "png", inDirectory: "assets/cats")!)!
+    private let sideLie = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-side-lie", ofType: "png", inDirectory: "assets/cats")!)!
+    private let groom = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-groom", ofType: "png", inDirectory: "assets/cats")!)!
     private var walking = false
     private var blinkUntil = Date.distantPast
     private var nextBlink = Date().addingTimeInterval(5)
     private var nextWalk = Date().addingTimeInterval(45)
     private var walkFrame = 0
+    private var action = MicroAction.none
+    private var actionEnds = Date.distantPast
+    private var nextAction = Date().addingTimeInterval(20)
+    private var groomFrame = 0
+    private var nextGroomFrame = Date.distantPast
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.tick() }
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.tick() }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func tick() {
         let now = Date()
+        var changed = false
         if !quiet && !walking && now >= nextWalk {
             walking = true
             walkFrame = 0
             nextWalk = now.addingTimeInterval(TimeInterval(Int.random(in: 40...80)))
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in self?.walking = false }
+            changed = true
         }
-        if !walking && now >= nextBlink {
+        if !quiet && !walking && action == .none && now >= nextAction {
+            action = [.sideLook, .sideLie, .groom].randomElement()!
+            actionEnds = now.addingTimeInterval(action == .sideLook ? 3 : action == .sideLie ? 7 : 5)
+            groomFrame = 0
+            nextGroomFrame = now
+            changed = true
+        }
+        if action != .none && now >= actionEnds {
+            action = .none
+            nextAction = now.addingTimeInterval(TimeInterval(Int.random(in: 18...35)))
+            changed = true
+        }
+        if action == .groom && now >= nextGroomFrame {
+            groomFrame = (groomFrame + 1) % 3
+            nextGroomFrame = now.addingTimeInterval(0.22)
+            changed = true
+        }
+        if !walking && action == .none && now >= nextBlink {
             blinkUntil = now.addingTimeInterval(0.22)
             nextBlink = now.addingTimeInterval(TimeInterval(Int.random(in: 7...12)))
+            changed = true
         }
-        needsDisplay = true
+        if walking || Date() < blinkUntil { changed = true }
+        if changed { needsDisplay = true }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -98,8 +128,11 @@ final class PetHostView: NSView {
             walkFrame = (walkFrame + 1) % 4
             let frameWidth = walk.size.width / 4
             walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: 120, width: frameWidth, height: 430), operation: .sourceOver, fraction: 1)
+        } else if action == .groom {
+            let frameWidth = groom.size.width / 3
+            groom.draw(in: NSRect(x: 20, y: 10, width: 160, height: 120), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: 100, width: frameWidth, height: 540), operation: .sourceOver, fraction: 1)
         } else {
-            let pose = Date() < blinkUntil ? blink : rest
+            let pose = action == .sideLook ? sideLook : action == .sideLie ? sideLie : Date() < blinkUntil ? blink : rest
             pose.draw(in: NSRect(x: 10, y: 10, width: 180, height: 120), from: NSRect(x: 0, y: 0, width: pose.size.width, height: pose.size.height), operation: .sourceOver, fraction: 1)
         }
     }
