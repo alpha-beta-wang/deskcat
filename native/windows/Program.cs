@@ -35,6 +35,7 @@ internal sealed class MochiForm : Form
     private bool _quiet;
     private bool _walking;
     private Point _walkTarget;
+    private bool _facingRight;
     private int _walkFrame;
     private DateTime _nextWalkFrame;
     private DateTime _nextWalk;
@@ -116,6 +117,7 @@ internal sealed class MochiForm : Form
             _walkTarget = new Point(
                 Math.Clamp(Left + _random.Next(-70, 71), area.Left, area.Right - Width),
                 Math.Clamp(Top + _random.Next(-45, 46), area.Top, area.Bottom - Height));
+            _facingRight = _walkTarget.X > Left;
             _walking = true;
             _walkFrame = 0;
             _nextWalkFrame = now;
@@ -202,7 +204,13 @@ internal sealed class MochiForm : Form
             if (_walking)
             {
                 var frameWidth = _walk.Width / 4;
+                if (_facingRight)
+                {
+                    g.TranslateTransform(WindowWidth, 0);
+                    g.ScaleTransform(-1, 1);
+                }
                 g.DrawImage(_walk, new Rectangle(17, 12, 165, 131), _walkFrame * frameWidth, 120, frameWidth, 430, GraphicsUnit.Pixel);
+                if (_facingRight) g.ResetTransform();
             }
             else if (_microAction == MicroAction.Groom)
             {
@@ -213,8 +221,20 @@ internal sealed class MochiForm : Form
             }
             else
             {
-                var pose = _microAction == MicroAction.SideLook ? _sideLook : _microAction == MicroAction.SideLie ? _sideLie : _blinkEnds > DateTime.UtcNow ? _blink : _rest;
+                var pose = _microAction == MicroAction.SideLook ? _sideLook : _microAction == MicroAction.SideLie ? _sideLie : _rest;
                 g.DrawImage(pose, new Rectangle(10, 18, 180, 120), 0, 0, pose.Width, pose.Height, GraphicsUnit.Pixel);
+                if (_microAction == MicroAction.None && _blinkEnds > DateTime.UtcNow)
+                {
+                    // The generated closed-eye pose has a slightly different body silhouette.
+                    // Restrict it to two oval eye regions so Mochi's back cannot "pop".
+                    using var eyes = new GraphicsPath();
+                    eyes.AddEllipse(46, 54, 14, 12);
+                    eyes.AddEllipse(69, 56, 14, 12);
+                    var saved = g.Save();
+                    g.SetClip(eyes);
+                    g.DrawImage(_blink, new Rectangle(10, 18, 180, 120), 0, 0, _blink.Width, _blink.Height, GraphicsUnit.Pixel);
+                    g.Restore(saved);
+                }
             }
         }
         PresentLayered();
