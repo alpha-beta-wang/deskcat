@@ -93,7 +93,14 @@ internal sealed class MochiForm : Form
 
     protected override CreateParams CreateParams
     {
-        get { var cp = base.CreateParams; cp.ExStyle |= 0x00080000; return cp; } // WS_EX_LAYERED
+        get
+        {
+            var cp = base.CreateParams;
+            // Layered transparent sprite; TOOLWINDOW removes it from Alt+Tab and
+            // Win+Tab, while NOACTIVATE keeps it out of normal app switching.
+            cp.ExStyle |= 0x00080000 | 0x00000080 | 0x08000000;
+            return cp;
+        }
     }
 
     private void SetQuiet(bool quiet)
