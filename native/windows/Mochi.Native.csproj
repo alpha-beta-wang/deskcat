@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="../../assets/cats/mochi-rest.png" Link="assets/cats/mochi-rest.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../assets/cats/mochi-blink.png" Link="assets/cats/mochi-blink.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-walk.png" Link="assets/cats/mochi-walk.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

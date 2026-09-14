@@ -63,11 +63,13 @@ final class MochiPanel: NSPanel {
 final class PetHostView: NSView {
     var quiet = false
     private let rest = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-rest", ofType: "png", inDirectory: "assets/cats")!)!
+    private let blink = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-blink", ofType: "png", inDirectory: "assets/cats")!)!
     private let walk = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-walk", ofType: "png", inDirectory: "assets/cats")!)!
     private var walking = false
     private var blinkUntil = Date.distantPast
     private var nextBlink = Date().addingTimeInterval(5)
     private var nextWalk = Date().addingTimeInterval(45)
+    private var walkFrame = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -79,6 +81,7 @@ final class PetHostView: NSView {
         let now = Date()
         if !quiet && !walking && now >= nextWalk {
             walking = true
+            walkFrame = 0
             nextWalk = now.addingTimeInterval(TimeInterval(Int.random(in: 40...80)))
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in self?.walking = false }
         }
@@ -92,10 +95,12 @@ final class PetHostView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill(); dirtyRect.fill()
         if walking {
-            walk.draw(in: NSRect(x: 10, y: 20, width: 180, height: 94), from: NSRect(x: 70, y: 140, width: 1460, height: 760), operation: .sourceOver, fraction: 1)
+            walkFrame = (walkFrame + 1) % 4
+            let frameWidth = walk.size.width / 4
+            walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: 120, width: frameWidth, height: 430), operation: .sourceOver, fraction: 1)
         } else {
-            let sourceX: CGFloat = Date() < blinkUntil ? rest.size.width / 2 : 0
-            rest.draw(in: NSRect(x: 10, y: 10, width: 180, height: 114), from: NSRect(x: sourceX, y: 155, width: rest.size.width / 2, height: 560), operation: .sourceOver, fraction: 1)
+            let pose = Date() < blinkUntil ? blink : rest
+            pose.draw(in: NSRect(x: 10, y: 10, width: 180, height: 120), from: NSRect(x: 0, y: 0, width: pose.size.width, height: pose.size.height), operation: .sourceOver, fraction: 1)
         }
     }
 }

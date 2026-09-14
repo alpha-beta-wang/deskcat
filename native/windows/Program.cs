@@ -18,8 +18,9 @@ internal static class Program
 internal sealed class MochiForm : Form
 {
     private const int WindowWidth = 200;
-    private const int WindowHeight = 135;
+    private const int WindowHeight = 155;
     private readonly Bitmap _rest;
+    private readonly Bitmap _blink;
     private readonly Bitmap _walk;
     private readonly Bitmap _surface = new(WindowWidth, WindowHeight, PixelFormat.Format32bppArgb);
     private readonly System.Windows.Forms.Timer _timer = new();
@@ -30,6 +31,8 @@ internal sealed class MochiForm : Form
     private bool _quiet;
     private bool _walking;
     private Point _walkTarget;
+    private int _walkFrame;
+    private DateTime _nextWalkFrame;
     private DateTime _nextWalk;
     private DateTime _nextBlink;
     private DateTime _blinkEnds;
@@ -46,6 +49,7 @@ internal sealed class MochiForm : Form
 
         var assets = Path.Combine(AppContext.BaseDirectory, "assets", "cats");
         _rest = new Bitmap(Path.Combine(assets, "mochi-rest.png"));
+        _blink = new Bitmap(Path.Combine(assets, "mochi-blink.png"));
         _walk = new Bitmap(Path.Combine(assets, "mochi-walk.png"));
         _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
         _nextBlink = DateTime.UtcNow.AddSeconds(4 + _random.Next(5));
@@ -93,17 +97,21 @@ internal sealed class MochiForm : Form
                 Math.Clamp(Left + _random.Next(-70, 71), area.Left, area.Right - Width),
                 Math.Clamp(Top + _random.Next(-45, 46), area.Top, area.Bottom - Height));
             _walking = true;
+            _walkFrame = 0;
+            _nextWalkFrame = now;
             _timer.Interval = 33;
             changed = true;
         }
         if (_walking)
         {
+            if (now >= _nextWalkFrame) { _walkFrame = (_walkFrame + 1) % 4; _nextWalkFrame = now.AddMilliseconds(110); }
             var next = new Point(MoveTowards(Left, _walkTarget.X, 3), MoveTowards(Top, _walkTarget.Y, 2));
             Location = next;
             changed = true;
             if (next == _walkTarget)
             {
                 _walking = false;
+                _walkFrame = 0;
                 _nextWalk = now.AddSeconds(40 + _random.Next(41));
                 _timer.Interval = 250;
             }
@@ -138,12 +146,13 @@ internal sealed class MochiForm : Form
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             if (_walking)
             {
-                g.DrawImage(_walk, new Rectangle(10, 20, 180, 94), 70, 140, 1460, 760, GraphicsUnit.Pixel);
+                var frameWidth = _walk.Width / 4;
+                g.DrawImage(_walk, new Rectangle(17, 12, 165, 131), _walkFrame * frameWidth, 120, frameWidth, 430, GraphicsUnit.Pixel);
             }
             else
             {
-                var sourceX = _blinkEnds > DateTime.UtcNow ? _rest.Width / 2 : 0;
-                g.DrawImage(_rest, new Rectangle(10, 10, 180, 114), sourceX, 155, _rest.Width / 2, 560, GraphicsUnit.Pixel);
+                var pose = _blinkEnds > DateTime.UtcNow ? _blink : _rest;
+                g.DrawImage(pose, new Rectangle(10, 18, 180, 120), 0, 0, pose.Width, pose.Height, GraphicsUnit.Pixel);
             }
         }
         PresentLayered();
@@ -164,7 +173,7 @@ internal sealed class MochiForm : Form
     }
 
     protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
-    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _walk.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
 
     protected override void WndProc(ref Message m)
     {
