@@ -130,7 +130,7 @@ final class PetHostView: NSView {
             walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: 120, width: frameWidth, height: 430), operation: .sourceOver, fraction: 1)
         } else if action == .groom {
             let frameWidth = groom.size.width / 3
-            groom.draw(in: NSRect(x: 20, y: 10, width: 160, height: 120), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: 100, width: frameWidth, height: 540), operation: .sourceOver, fraction: 1)
+            groom.draw(in: NSRect(x: 32, y: 28, width: 135, height: 100), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: 100, width: frameWidth, height: 540), operation: .sourceOver, fraction: 1)
         } else {
             let pose = action == .sideLook ? sideLook : action == .sideLie ? sideLie : Date() < blinkUntil ? blink : rest
             pose.draw(in: NSRect(x: 10, y: 10, width: 180, height: 120), from: NSRect(x: 0, y: 0, width: pose.size.width, height: pose.size.height), operation: .sourceOver, fraction: 1)

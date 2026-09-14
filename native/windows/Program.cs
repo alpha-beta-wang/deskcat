@@ -209,7 +209,7 @@ internal sealed class MochiForm : Form
                 var frameWidth = _groom.Width / 3;
                 // Grooming is deliberately a little smaller than the resting pose;
                 // its raised paw must not make Mochi visually "pop" larger.
-                g.DrawImage(_groom, new Rectangle(20, 18, 160, 120), _groomFrame * frameWidth, 100, frameWidth, 540, GraphicsUnit.Pixel);
+                g.DrawImage(_groom, new Rectangle(32, 28, 135, 100), _groomFrame * frameWidth, 100, frameWidth, 540, GraphicsUnit.Pixel);
             }
             else
             {
