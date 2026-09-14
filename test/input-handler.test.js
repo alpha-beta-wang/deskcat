@@ -55,4 +55,11 @@ describe('createInputHandler', () => {
     canvas.fire('dblclick', at(120, 120));
     expect(emitted.map((e) => e.type)).toEqual(['play']);
   });
+
+  test('right-click on the cat emits a menu event', () => {
+    let prevented = false;
+    canvas.fire('contextmenu', { ...at(120, 120), preventDefault: () => { prevented = true; } });
+    expect(emitted.map((e) => e.type)).toEqual(['menu']);
+    expect(prevented).toBe(true);
+  });
 });

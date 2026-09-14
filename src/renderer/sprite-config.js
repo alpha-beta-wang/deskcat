@@ -1,24 +1,15 @@
-// Frame metadata for the octopusinkus "Cat Pack" sheet:
-//   assets/cats/Cat_Sprite_Sheet_Black.png  (384x288 = 12 cols x 9 rows of 32x32)
-// Frame counts per row were measured from the sheet. Side-view rows face LEFT in
-// the source art; loop.js mirrors them when the cat moves right.
-// Clip KEYS (idle/walk/run/sit/lick/paw/yarn/sleep) are referenced by other modules.
+// AI-assisted sprite sheets made from the user's Mochi photo references.
+// Each sheet is horizontal; crops remove the deliberately generous transparent padding.
 const SPRITES = {
   sheets: {
-    main: { src: '../../assets/cats/cat.png', frameW: 32, frameH: 32 },
+    walk: { src: '../../assets/cats/mochi-walk.png' },
+    rest: { src: '../../assets/cats/mochi-rest.png' },
   },
   clips: {
-    idle:  { sheet: 'main', row: 0, frames: 9,  fps: 6,  loop: true }, // sit upright (front)
-    sit:   { sheet: 'main', row: 0, frames: 9,  fps: 4,  loop: true }, // reuse sitting, slower
-    lick:  { sheet: 'main', row: 2, frames: 11, fps: 8,  loop: true }, // groom / lick (used for EAT)
-    paw:   { sheet: 'main', row: 3, frames: 6,  fps: 8,  loop: true }, // low crouch (used for BEG)
-    walk:  { sheet: 'main', row: 5, frames: 10, fps: 10, loop: true }, // side walk cycle
-    run:   { sheet: 'main', row: 6, frames: 10, fps: 14, loop: true }, // low fast run
-    yarn:  { sheet: 'main', row: 7, frames: 11, fps: 10, loop: true }, // play with pink yarn ball
-    // sleep: row 4 settles into lying flat; start at col 8 so we loop only the
-    // two calm "lying still" frames (col 0-7 are the sit-down lead-in), slow fps
-    // = gentle breathing, not the row-8 roll/stretch that looked like movement.
-    sleep: { sheet: 'main', row: 4, col: 8, frames: 2, fps: 2, loop: true },
+    // Keep the quiet pose intentionally static: separately generated blink frames looked like a hard cut.
+    rest: { sheet: 'rest', frames: 1, sourceFrames: 2, fps: 1, loop: true, cropY: 155, cropH: 560, drawW: 180, drawH: 114 },
+    // A smaller walking footprint keeps the upright pose from visually "popping" bigger than the lying pose.
+    walk: { sheet: 'walk', frames: 6, fps: 7, loop: true, cropY: 115, cropH: 460, drawW: 140, drawH: 178 },
   },
 };
 

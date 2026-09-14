@@ -31,6 +31,12 @@ function createInputHandler(canvas, getCatRect, emit, reportHover) {
   canvas.addEventListener('dblclick', (e) => {
     if (inCat(e)) emit({ type: 'play', x: e.clientX, y: e.clientY });
   });
+
+  canvas.addEventListener('contextmenu', (e) => {
+    if (!inCat(e)) return;
+    e.preventDefault();
+    emit({ type: 'menu', x: e.clientX, y: e.clientY });
+  });
 }
 
 module.exports = { createInputHandler };

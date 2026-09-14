@@ -39,3 +39,12 @@ test('randomWanderPoint stays in bounds (uses injected rng)', () => {
   expect(p.x).toBeLessThanOrEqual(bounds.w - 64);
   expect(p.y).toBeLessThanOrEqual(bounds.h - 64);
 });
+
+test('randomNearbyPoint remains near the pet and inside bounds', () => {
+  const m = new Mover({ x: 500, y: 400, speed: 100, bounds, footprint: { w: 64, h: 64 } });
+  const p = m.randomNearbyPoint(140, () => 0.5);
+  expect(Math.abs(p.x - 500)).toBeLessThanOrEqual(140);
+  expect(Math.abs(p.y - 400)).toBeLessThanOrEqual(49);
+  expect(p.x).toBeGreaterThanOrEqual(0);
+  expect(p.y).toBeGreaterThanOrEqual(0);
+});

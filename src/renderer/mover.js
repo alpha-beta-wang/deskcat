@@ -28,6 +28,16 @@ class Mover {
     const maxY = this.bounds.h - this.footprint.h;
     return { x: rng() * maxX, y: rng() * maxY };
   }
+  randomNearbyPoint(radius = 140, rng = Math.random) {
+    const angle = rng() * Math.PI * 2;
+    const distance = radius * (0.35 + rng() * 0.65);
+    const p = { x: this.x + Math.cos(angle) * distance, y: this.y + Math.sin(angle) * distance * 0.35 };
+    const maxX = this.bounds.w - this.footprint.w;
+    const maxY = this.bounds.h - this.footprint.h;
+    p.x = Math.max(0, Math.min(maxX, p.x));
+    p.y = Math.max(0, Math.min(maxY, p.y));
+    return p;
+  }
 }
 
 module.exports = { Mover };

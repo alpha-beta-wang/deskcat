@@ -5,21 +5,34 @@ const path = require('path');
 function createTray(win, getState, setState) {
   const tray = new Tray(path.join(__dirname, '../../assets/tray-icon.png'));
   function rebuild() {
-    const muted = getState().muted;
+    const state = getState();
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '🍗 Feed', click: () => win.webContents.send('cat:action', 'feed') },
-      { label: '😴 Sleep', click: () => win.webContents.send('cat:action', 'sleep') },
-      { label: '🧶 Play', click: () => win.webContents.send('cat:action', 'play') },
+      { label: 'Show Mochi', click: () => win.show() },
+      { label: 'Normal mode', type: 'radio', checked: state.mode === 'normal', click: () => setState({ mode: 'normal' }) },
+      { label: 'Quiet mode', type: 'radio', checked: state.mode === 'quiet', click: () => setState({ mode: 'quiet' }) },
       { type: 'separator' },
-      { label: muted ? '🔈 Unmute' : '🔇 Mute', click: () => { const m = !muted; setState({ muted: m }); win.webContents.send('cat:mute', m); rebuild(); } },
-      { label: 'Start with Windows', type: 'checkbox', checked: getState().autostart, click: (item) => setState({ autostart: item.checked }) },
+      { label: state.muted ? 'Enable sound' : 'Mute sound', click: () => setState({ muted: !state.muted }) },
+      { label: 'Start at login', type: 'checkbox', checked: state.autostart, click: (item) => setState({ autostart: item.checked }) },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
     ]));
   }
-  tray.setToolTip('Desktop Cat');
+  tray.setToolTip('Mochi');
   rebuild();
-  return tray;
+  return { tray, rebuild };
 }
 
-module.exports = { createTray };
+function showPetMenu(win, getState, setState) {
+  const state = getState();
+  Menu.buildFromTemplate([
+    { label: 'Mochi', enabled: false },
+    { type: 'separator' },
+    { label: 'Normal mode', type: 'radio', checked: state.mode === 'normal', click: () => setState({ mode: 'normal' }) },
+    { label: 'Quiet mode', type: 'radio', checked: state.mode === 'quiet', click: () => setState({ mode: 'quiet' }) },
+    { type: 'separator' },
+    { label: 'Hide', click: () => win.hide() },
+    { label: 'Quit', click: () => app.quit() },
+  ]).popup({ window: win });
+}
+
+module.exports = { createTray, showPetMenu };
