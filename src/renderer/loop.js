@@ -26,8 +26,8 @@ for (const [key, sheet] of Object.entries(SPRITES.sheets)) {
 }
 
 const mover = new Mover({
-  x: 48,
-  y: 62,
+  x: Math.max(48, window.innerWidth - 250),
+  y: Math.max(48, window.innerHeight - 190),
   speed: 45,
   bounds: { w: WINDOW_W, h: WINDOW_H },
   footprint: { w: PET_W, h: 150 },
@@ -39,11 +39,13 @@ const player = new AnimationPlayer(CLIPS);
 let state = 'rest';
 let mode = 'normal';
 let actionTimer = 40 + Math.random() * 40;
-let blinkTimer = 14 + Math.random() * 18;
+let blinkTimer = 4 + Math.random() * 4;
 let blinkRemaining = 0;
 let dragging = false;
+let dragOffset = null;
 let last = performance.now();
 const inputQueue = [];
+let lastDrawRect = null;
 
 function currentClip() { return SPRITES.clips[state]; }
 function getPetRect() {
@@ -61,24 +63,27 @@ function handleInput(event) {
   // responsive even while the pet is otherwise rendering economically.
   if (event.type === 'drag-start') {
     dragging = true;
+    dragOffset = { x: event.x - mover.x, y: event.y - mover.y };
     setState('rest');
-    ipcRenderer.send('cat:drag-start', event);
     return;
   }
   if (event.type === 'drag-move') {
-    ipcRenderer.send('cat:drag-move', event);
+    if (dragOffset) {
+      mover.x = Math.max(0, Math.min(canvas.width - currentClip().drawW, event.x - dragOffset.x));
+      mover.y = Math.max(0, Math.min(canvas.height - currentClip().drawH, event.y - dragOffset.y));
+    }
     return;
   }
   if (event.type === 'drag-end') {
     dragging = false;
-    ipcRenderer.send('cat:drag-end');
+    dragOffset = null;
     return;
   }
   inputQueue.push(event);
 }
 
 player.play('rest');
-createInputHandler(canvas, getPetRect, handleInput, () => {});
+createInputHandler(canvas, getPetRect, handleInput, (over) => ipcRenderer.send('cat:hover', over));
 
 ipcRenderer.on('cat:mode', (_event, nextMode) => {
   mode = nextMode;
@@ -126,8 +131,8 @@ function updateBlink(dt) {
   blinkTimer -= dt;
   if (blinkTimer <= 0) {
     // 240ms total, cross-faded: enough to read as a blink without a visible frame swap.
-    blinkRemaining = 0.24;
-    blinkTimer = 14 + Math.random() * 18;
+    blinkRemaining = 0.36;
+    blinkTimer = 7 + Math.random() * 5;
   }
 }
 
@@ -139,15 +144,17 @@ function drawClip(image, clip, sourceX, destinationX, destinationY, alpha = 1) {
 }
 
 function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   const clip = currentClip();
+  const dirty = { x: mover.x - 4, y: mover.y - 4, w: clip.drawW + 8, h: clip.drawH + 8 };
+  if (lastDrawRect) ctx.clearRect(lastDrawRect.x, lastDrawRect.y, lastDrawRect.w, lastDrawRect.h);
+  ctx.clearRect(dirty.x, dirty.y, dirty.w, dirty.h);
   const image = images[clip.sheet];
   if (!image.complete || image.naturalWidth === 0) return;
   const frameW = image.naturalWidth / (clip.sourceFrames || clip.frames);
   const frame = player.currentFrame();
   const sourceX = frame * frameW;
   const blinkMix = state === 'rest' && blinkRemaining > 0
-    ? (blinkRemaining > 0.12 ? (0.24 - blinkRemaining) / 0.12 : blinkRemaining / 0.12)
+    ? (blinkRemaining > 0.18 ? (0.36 - blinkRemaining) / 0.18 : blinkRemaining / 0.18)
     : 0;
   ctx.save();
   if (state === 'walk' && mover.facing === 1) {
@@ -159,6 +166,7 @@ function render() {
     if (blinkMix > 0) drawClip(image, clip, frameW, mover.x, mover.y, blinkMix);
   }
   ctx.restore();
+  lastDrawRect = dirty;
 }
 
 function frame(now) {

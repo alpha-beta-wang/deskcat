@@ -1,19 +1,17 @@
 const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 
-function createOverlay(position) {
+function createOverlay() {
   const { workArea } = screen.getPrimaryDisplay();
   const win = new BrowserWindow({
-    x: position?.x ?? (workArea.x + workArea.width - 300),
-    y: position?.y ?? (workArea.y + workArea.height - 270),
-    width: 280, height: 240,
+    x: workArea.x, y: workArea.y, width: workArea.width, height: workArea.height,
     transparent: true,
     frame: false,
     resizable: false,
     movable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    focusable: true,
+    focusable: false,
     hasShadow: false,
     webPreferences: {
       nodeIntegration: true,
