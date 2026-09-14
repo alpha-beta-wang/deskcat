@@ -20,17 +20,26 @@ if (!gotLock) {
 
   let win = null;
   let tray = null; // keep a reference so the tray isn't garbage-collected
+  let dragAnchor = null;
   app.whenReady().then(() => {
     applyAutostart(store.get('autostart'));
     win = createOverlay(store.get('position'));
     wirePassthrough(win);
     tray = createTray(win, getState, setState);
     ipcMain.handle('cat:settings', () => getState());
-    ipcMain.on('cat:window-position', (_event, position) => {
-      if (!Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return;
-      win.setPosition(Math.round(position.x), Math.round(position.y));
-      setState({ position: { x: Math.round(position.x), y: Math.round(position.y) } });
+    ipcMain.on('cat:drag-start', (_event, point) => {
+      if (!Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return;
+      const [x, y] = win.getPosition();
+      dragAnchor = { screenX: point.screenX, screenY: point.screenY, x, y };
     });
+    ipcMain.on('cat:drag-move', (_event, point) => {
+      if (!dragAnchor || !Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return;
+      const x = Math.round(dragAnchor.x + point.screenX - dragAnchor.screenX);
+      const y = Math.round(dragAnchor.y + point.screenY - dragAnchor.screenY);
+      win.setPosition(x, y);
+      setState({ position: { x, y } });
+    });
+    ipcMain.on('cat:drag-end', () => { dragAnchor = null; });
     ipcMain.on('cat:menu', () => showPetMenu(win, getState, setState));
   });
   app.on('second-instance', () => { if (win) win.show(); });

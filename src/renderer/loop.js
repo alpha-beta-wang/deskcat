@@ -149,12 +149,17 @@ function frame(now) {
   last = now;
   const input = inputQueue.shift();
   if (input) {
-    if (input.type === 'drag-start') setState('rest');
-    if (input.type === 'drag-move' && Number.isFinite(input.screenX) && Number.isFinite(input.screenY)) {
-      ipcRenderer.send('cat:window-position', { x: input.screenX - input.x, y: input.screenY - input.y });
+    if (input.type === 'drag-start') {
+      setState('rest');
+      ipcRenderer.send('cat:drag-start', input);
     }
+    if (input.type === 'drag-move' && Number.isFinite(input.screenX) && Number.isFinite(input.screenY)) {
+      ipcRenderer.send('cat:drag-move', input);
+    }
+    if (input.type === 'drag-end') ipcRenderer.send('cat:drag-end');
     if (input.type === 'menu') ipcRenderer.send('cat:menu');
-    if (input.type === 'pet') actionTimer = 40 + Math.random() * 40;
+    // A simple click intentionally does not change pose or animation.
+    if (input.type === 'pet') actionTimer = Math.max(actionTimer, 40);
   }
   decideAutonomy(dt);
   updateBlink(dt);
