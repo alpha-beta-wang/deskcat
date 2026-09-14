@@ -41,6 +41,7 @@ let mode = 'normal';
 let actionTimer = 40 + Math.random() * 40;
 let blinkTimer = 14 + Math.random() * 18;
 let blinkRemaining = 0;
+let dragging = false;
 let last = performance.now();
 const inputQueue = [];
 
@@ -55,13 +56,29 @@ function setState(next) {
   player.play(currentClip() ? next : 'rest');
 }
 
+function handleInput(event) {
+  // Drag messages bypass the low-idle-FPS queue: cursor movement must remain
+  // responsive even while the pet is otherwise rendering economically.
+  if (event.type === 'drag-start') {
+    dragging = true;
+    setState('rest');
+    ipcRenderer.send('cat:drag-start', event);
+    return;
+  }
+  if (event.type === 'drag-move') {
+    ipcRenderer.send('cat:drag-move', event);
+    return;
+  }
+  if (event.type === 'drag-end') {
+    dragging = false;
+    ipcRenderer.send('cat:drag-end');
+    return;
+  }
+  inputQueue.push(event);
+}
+
 player.play('rest');
-createInputHandler(
-  canvas,
-  getPetRect,
-  (event) => inputQueue.push(event),
-  (over) => ipcRenderer.send('cat:hover', over),
-);
+createInputHandler(canvas, getPetRect, handleInput, () => {});
 
 ipcRenderer.on('cat:mode', (_event, nextMode) => {
   mode = nextMode;
@@ -98,7 +115,7 @@ function decideAutonomy(dt) {
 }
 
 function updateBlink(dt) {
-  if (state !== 'rest') {
+  if (state !== 'rest' || dragging) {
     blinkRemaining = 0;
     return;
   }
@@ -149,14 +166,6 @@ function frame(now) {
   last = now;
   const input = inputQueue.shift();
   if (input) {
-    if (input.type === 'drag-start') {
-      setState('rest');
-      ipcRenderer.send('cat:drag-start', input);
-    }
-    if (input.type === 'drag-move' && Number.isFinite(input.screenX) && Number.isFinite(input.screenY)) {
-      ipcRenderer.send('cat:drag-move', input);
-    }
-    if (input.type === 'drag-end') ipcRenderer.send('cat:drag-end');
     if (input.type === 'menu') ipcRenderer.send('cat:menu');
     // A simple click intentionally does not change pose or animation.
     if (input.type === 'pet') actionTimer = Math.max(actionTimer, 40);
