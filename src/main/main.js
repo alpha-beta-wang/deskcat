@@ -22,11 +22,15 @@ if (!gotLock) {
   let tray = null; // keep a reference so the tray isn't garbage-collected
   app.whenReady().then(() => {
     applyAutostart(store.get('autostart'));
-    win = createOverlay();
+    win = createOverlay(store.get('position'));
     wirePassthrough(win);
     tray = createTray(win, getState, setState);
     ipcMain.handle('cat:settings', () => getState());
-    ipcMain.on('cat:position', (_event, position) => setState({ position }));
+    ipcMain.on('cat:window-position', (_event, position) => {
+      if (!Number.isFinite(position?.x) || !Number.isFinite(position?.y)) return;
+      win.setPosition(Math.round(position.x), Math.round(position.y));
+      setState({ position: { x: Math.round(position.x), y: Math.round(position.y) } });
+    });
     ipcMain.on('cat:menu', () => showPetMenu(win, getState, setState));
   });
   app.on('second-instance', () => { if (win) win.show(); });

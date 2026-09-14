@@ -5,6 +5,8 @@ const { SPRITES, CLIPS } = require('./sprite-config.js');
 const { ipcRenderer } = require('electron');
 
 const PET_W = 180;
+const WINDOW_W = 280;
+const WINDOW_H = 240;
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = true;
@@ -24,10 +26,10 @@ for (const [key, sheet] of Object.entries(SPRITES.sheets)) {
 }
 
 const mover = new Mover({
-  x: Math.max(24, window.innerWidth - PET_W - 36),
-  y: Math.max(24, window.innerHeight - 150),
+  x: 48,
+  y: 62,
   speed: 45,
-  bounds: { w: window.innerWidth, h: window.innerHeight },
+  bounds: { w: WINDOW_W, h: WINDOW_H },
   footprint: { w: PET_W, h: 150 },
 });
 resize();
@@ -37,6 +39,8 @@ const player = new AnimationPlayer(CLIPS);
 let state = 'rest';
 let mode = 'normal';
 let actionTimer = 40 + Math.random() * 40;
+let blinkTimer = 14 + Math.random() * 18;
+let blinkRemaining = 0;
 let last = performance.now();
 const inputQueue = [];
 
@@ -66,20 +70,11 @@ ipcRenderer.on('cat:mode', (_event, nextMode) => {
 
 ipcRenderer.invoke('cat:settings').then((settings) => {
   mode = settings.mode || 'normal';
-  if (settings.position && Number.isFinite(settings.position.x) && Number.isFinite(settings.position.y)) {
-    mover.x = settings.position.x;
-    mover.y = settings.position.y;
-    mover._clamp();
-  }
   if (mode === 'quiet') setState('rest');
 });
 
-function persistPosition() {
-  ipcRenderer.send('cat:position', { x: Math.round(mover.x), y: Math.round(mover.y) });
-}
-
 function startNearbyWalk() {
-  const target = mover.randomNearbyPoint(110);
+  const target = mover.randomNearbyPoint(70);
   mover.setTarget(target.x, target.y);
   setState('walk');
 }
@@ -92,7 +87,6 @@ function decideAutonomy(dt) {
   if (state === 'walk' && mover.arrived()) {
     setState('rest');
     actionTimer = 40 + Math.random() * 40;
-    persistPosition();
     return;
   }
   if (state === 'walk') return;
@@ -103,6 +97,30 @@ function decideAutonomy(dt) {
   }
 }
 
+function updateBlink(dt) {
+  if (state !== 'rest') {
+    blinkRemaining = 0;
+    return;
+  }
+  if (blinkRemaining > 0) {
+    blinkRemaining = Math.max(0, blinkRemaining - dt);
+    return;
+  }
+  blinkTimer -= dt;
+  if (blinkTimer <= 0) {
+    // 240ms total, cross-faded: enough to read as a blink without a visible frame swap.
+    blinkRemaining = 0.24;
+    blinkTimer = 14 + Math.random() * 18;
+  }
+}
+
+function drawClip(image, clip, sourceX, destinationX, destinationY, alpha = 1) {
+  const cropX = sourceX + (clip.cropX || 0);
+  const cropW = clip.cropW || (image.naturalWidth / (clip.sourceFrames || clip.frames));
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(image, cropX, clip.cropY, cropW, clip.cropH, destinationX, destinationY, clip.drawW, clip.drawH);
+}
+
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const clip = currentClip();
@@ -111,13 +129,17 @@ function render() {
   const frameW = image.naturalWidth / (clip.sourceFrames || clip.frames);
   const frame = player.currentFrame();
   const sourceX = frame * frameW;
+  const blinkMix = state === 'rest' && blinkRemaining > 0
+    ? (blinkRemaining > 0.12 ? (0.24 - blinkRemaining) / 0.12 : blinkRemaining / 0.12)
+    : 0;
   ctx.save();
   if (state === 'walk' && mover.facing === 1) {
     ctx.translate(mover.x + clip.drawW, mover.y);
     ctx.scale(-1, 1);
-    ctx.drawImage(image, sourceX, clip.cropY, frameW, clip.cropH, 0, 0, clip.drawW, clip.drawH);
+    drawClip(image, clip, sourceX, 0, 0);
   } else {
-    ctx.drawImage(image, sourceX, clip.cropY, frameW, clip.cropH, mover.x, mover.y, clip.drawW, clip.drawH);
+    drawClip(image, clip, sourceX, mover.x, mover.y, 1 - blinkMix);
+    if (blinkMix > 0) drawClip(image, clip, frameW, mover.x, mover.y, blinkMix);
   }
   ctx.restore();
 }
@@ -128,20 +150,18 @@ function frame(now) {
   const input = inputQueue.shift();
   if (input) {
     if (input.type === 'drag-start') setState('rest');
-    if (input.type === 'drag-move') {
-      mover.x = input.x - PET_W / 2;
-      mover.y = input.y - 60;
-      mover._clamp();
+    if (input.type === 'drag-move' && Number.isFinite(input.screenX) && Number.isFinite(input.screenY)) {
+      ipcRenderer.send('cat:window-position', { x: input.screenX - input.x, y: input.screenY - input.y });
     }
-    if (input.type === 'drag-end') persistPosition();
     if (input.type === 'menu') ipcRenderer.send('cat:menu');
     if (input.type === 'pet') actionTimer = 40 + Math.random() * 40;
   }
   decideAutonomy(dt);
+  updateBlink(dt);
   if (state === 'walk') mover.update(dt);
   player.update(dt);
   render();
-  requestAnimationFrame(frame);
+  setTimeout(() => requestAnimationFrame(frame), state === 'walk' ? 55 : 125);
 }
 
 requestAnimationFrame(frame);

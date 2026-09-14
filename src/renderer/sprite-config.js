@@ -6,10 +6,10 @@ const SPRITES = {
     rest: { src: '../../assets/cats/mochi-rest.png' },
   },
   clips: {
-    // Keep the quiet pose intentionally static: separately generated blink frames looked like a hard cut.
+    // The second source cell is only used for a brief cross-faded blink in loop.js.
     rest: { sheet: 'rest', frames: 1, sourceFrames: 2, fps: 1, loop: true, cropY: 155, cropH: 560, drawW: 180, drawH: 114 },
-    // A smaller walking footprint keeps the upright pose from visually "popping" bigger than the lying pose.
-    walk: { sheet: 'walk', frames: 6, fps: 7, loop: true, cropY: 115, cropH: 460, drawW: 140, drawH: 178 },
+    // One clean, wide full-body stride avoids the narrow, shape-shifting generated sheet.
+    walk: { sheet: 'walk', frames: 1, fps: 1, loop: true, cropX: 70, cropY: 140, cropW: 1460, cropH: 760, drawW: 180, drawH: 94 },
   },
 };
 

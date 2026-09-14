@@ -3,6 +3,7 @@
 function createInputHandler(canvas, getCatRect, emit, reportHover) {
   let dragging = false;
   let movedDuringDrag = false;
+  const point = (e) => ({ x: e.clientX, y: e.clientY, screenX: e.screenX, screenY: e.screenY });
 
   const inCat = (e) => {
     const r = getCatRect();
@@ -12,20 +13,20 @@ function createInputHandler(canvas, getCatRect, emit, reportHover) {
 
   canvas.addEventListener('mousemove', (e) => {
     reportHover(inCat(e));
-    if (dragging) { movedDuringDrag = true; emit({ type: 'drag-move', x: e.clientX, y: e.clientY }); }
+    if (dragging) { movedDuringDrag = true; emit({ type: 'drag-move', ...point(e) }); }
   });
 
   canvas.addEventListener('mousedown', (e) => {
     if (!inCat(e)) return;
     dragging = true; movedDuringDrag = false;
-    emit({ type: 'drag-start', x: e.clientX, y: e.clientY });
+    emit({ type: 'drag-start', ...point(e) });
   });
 
   window.addEventListener('mouseup', (e) => {
     if (!dragging) return;
     dragging = false;
-    emit({ type: 'drag-end', x: e.clientX, y: e.clientY });
-    if (!movedDuringDrag) emit({ type: 'pet', x: e.clientX, y: e.clientY }); // click w/o move = pet
+    emit({ type: 'drag-end', ...point(e) });
+    if (!movedDuringDrag) emit({ type: 'pet', ...point(e) }); // click w/o move = pet
   });
 
   canvas.addEventListener('dblclick', (e) => {
