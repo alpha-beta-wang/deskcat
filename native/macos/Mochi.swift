@@ -119,61 +119,111 @@ final class MochiPanel: NSPanel {
 
 final class PetHostView: NSView {
     private enum MicroAction { case none, sideLook, sideLie, groom }
-    var quiet = false
-    var petName = "mochi" { didSet { needsDisplay = true } }
-    private let mochi = PetImages("mochi")
-    private let niangao = PetImages("niangao")
-    private var pet: PetImages { petName == "niangao" ? niangao : mochi }
+    private enum Timing {
+        static let idleTick = 0.1
+        static let walkFrame = 0.11
+        static let groomFrame = 0.22
+        static let blinkDuration = 0.24
+        static let blinkHalfPhase = 0.06
+        static func walkDelay() -> Double { Double.random(in: 40...80) }
+        static func actionDelay() -> Double { Double.random(in: 18...35) }
+        static func blinkDelay() -> Double { Double.random(in: 7...12) }
+    }
+    var quiet = false {
+        didSet {
+            if quiet {
+                walking = false
+                action = .none
+                blinkUntil = 0
+            }
+            let now = ProcessInfo.processInfo.systemUptime
+            nextWalk = now + Timing.walkDelay()
+            nextAction = now + Timing.actionDelay()
+            needsDisplay = true
+        }
+    }
+    var petName = "mochi" {
+        didSet {
+            petCache.removeAll()
+            needsDisplay = true
+        }
+    }
+    private var petCache: [String: PetImages] = [:]
+    private var pet: PetImages {
+        if let cached = petCache[petName] { return cached }
+        let loaded = PetImages(petName)
+        petCache[petName] = loaded
+        return loaded
+    }
     private var walking = false
-    private var blinkUntil = Date.distantPast
-    private var nextBlink = Date().addingTimeInterval(5)
-    private var nextWalk = Date().addingTimeInterval(45)
+    private var walkEnds = 0.0
+    private var blinkStarted = 0.0
+    private var blinkUntil = 0.0
+    private var nextBlink = ProcessInfo.processInfo.systemUptime + 5
+    private var nextWalk = ProcessInfo.processInfo.systemUptime + 45
     private var walkFrame = 0
     private var action = MicroAction.none
-    private var actionEnds = Date.distantPast
-    private var nextAction = Date().addingTimeInterval(20)
+    private var actionEnds = 0.0
+    private var nextAction = ProcessInfo.processInfo.systemUptime + 20
     private var groomFrame = 0
-    private var nextGroomFrame = Date.distantPast
+    private var nextGroomFrame = 0.0
+    private var nextWalkFrame = 0.0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.tick() }
+        Timer.scheduledTimer(withTimeInterval: Timing.idleTick, repeats: true) { [weak self] _ in self?.tick() }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func tick() {
-        let now = Date()
+        let now = ProcessInfo.processInfo.systemUptime
         var changed = false
         if !quiet && !walking && now >= nextWalk {
             walking = true
             walkFrame = 0
-            nextWalk = now.addingTimeInterval(TimeInterval(Int.random(in: 40...80)))
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in self?.walking = false }
+            nextWalkFrame = now + Timing.walkFrame
+            walkEnds = now + 1.4
+            changed = true
+        }
+        if walking && now >= nextWalkFrame {
+            walkFrame = (walkFrame + 1) % pet.walk.count
+            nextWalkFrame = now + Timing.walkFrame
+            changed = true
+        }
+        if walking && now >= walkEnds {
+            walking = false
+            walkFrame = 0
+            nextWalk = now + Timing.walkDelay()
+            if nextAction <= now { nextAction = now + Timing.actionDelay() }
+            if nextBlink <= now { nextBlink = now + Timing.blinkDelay() }
             changed = true
         }
         if !quiet && !walking && action == .none && now >= nextAction {
             action = [.sideLook, .sideLie, .groom].randomElement()!
-            actionEnds = now.addingTimeInterval(action == .sideLook ? 3 : action == .sideLie ? 7 : 5)
+            actionEnds = now + (action == .sideLook ? 3 : action == .sideLie ? 7 : 5)
             groomFrame = 0
-            nextGroomFrame = now
+            nextGroomFrame = now + Timing.groomFrame
             changed = true
         }
         if action != .none && now >= actionEnds {
             action = .none
-            nextAction = now.addingTimeInterval(TimeInterval(Int.random(in: 18...35)))
+            nextAction = now + Timing.actionDelay()
+            if nextWalk <= now { nextWalk = now + Timing.walkDelay() }
+            if nextBlink <= now { nextBlink = now + Timing.blinkDelay() }
             changed = true
         }
         if action == .groom && now >= nextGroomFrame {
-            groomFrame = (groomFrame + 1) % 3
-            nextGroomFrame = now.addingTimeInterval(0.22)
+            groomFrame = (groomFrame + 1) % pet.groom.count
+            nextGroomFrame = now + Timing.groomFrame
             changed = true
         }
-        if !walking && action == .none && now >= nextBlink {
-            blinkUntil = now.addingTimeInterval(0.22)
-            nextBlink = now.addingTimeInterval(TimeInterval(Int.random(in: 7...12)))
+        if !quiet && !walking && action == .none && now >= nextBlink && now >= blinkUntil {
+            blinkStarted = now
+            blinkUntil = now + Timing.blinkDuration
+            nextBlink = now + Timing.blinkDelay()
             changed = true
         }
-        if walking || Date() < blinkUntil { changed = true }
+        if walking || now < blinkUntil { changed = true }
         if changed { needsDisplay = true }
     }
 
@@ -183,48 +233,95 @@ final class PetHostView: NSView {
 
     private func start(_ next: MicroAction) {
         guard !quiet else { return }
-        let now = Date()
+        let now = ProcessInfo.processInfo.systemUptime
+        if walking { nextWalk = now + Timing.walkDelay() }
         walking = false
         action = next
-        actionEnds = now.addingTimeInterval(next == .sideLook ? 3 : next == .sideLie ? 7 : 5)
+        blinkUntil = 0
+        actionEnds = now + (next == .sideLook ? 3 : next == .sideLie ? 7 : 5)
         groomFrame = 0
-        nextGroomFrame = now
+        nextGroomFrame = now + Timing.groomFrame
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill(); dirtyRect.fill()
         if walking {
-            walkFrame = (walkFrame + 1) % 4
-            let frameWidth = pet.walk.size.width / 4
-            let sourceY: CGFloat = petName == "niangao" ? 0 : 120
-            let sourceHeight: CGFloat = petName == "niangao" ? pet.walk.size.height : 430
-            pet.walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: sourceY, width: frameWidth, height: sourceHeight), operation: .sourceOver, fraction: 1)
+            pet.walk[walkFrame % pet.walk.count].draw(in: pet.walkBounds)
         } else if action == .groom {
-            let frameWidth = pet.groom.size.width / 3
-            let sourceY: CGFloat = petName == "niangao" ? 0 : 100
-            let sourceHeight: CGFloat = petName == "niangao" ? pet.groom.size.height : 540
-            pet.groom.draw(in: NSRect(x: 32, y: 28, width: 135, height: 100), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: sourceY, width: frameWidth, height: sourceHeight), operation: .sourceOver, fraction: 1)
+            pet.groom[groomFrame % pet.groom.count].draw(in: pet.groomBounds)
         } else {
-            let pose = action == .sideLook ? pet.sideLook : action == .sideLie ? pet.sideLie : Date() < blinkUntil ? pet.blink : pet.rest
-            pose.draw(in: NSRect(x: 10, y: 10, width: 180, height: 120), from: NSRect(x: 0, y: 0, width: pose.size.width, height: pose.size.height), operation: .sourceOver, fraction: 1)
+            let pose = action == .sideLook ? pet.sideLook : action == .sideLie ? pet.sideLie : pet.rest
+            pose.draw(in: pet.poseBounds)
+            let now = ProcessInfo.processInfo.systemUptime
+            if action == .none && now < blinkUntil {
+                let elapsed = now - blinkStarted
+                let remaining = blinkUntil - now
+                let blink = elapsed < Timing.blinkHalfPhase || remaining < Timing.blinkHalfPhase ? pet.blinkHalf : pet.blink
+                NSGraphicsContext.saveGraphicsState()
+                let eyePath = NSBezierPath()
+                pet.blinkEyeClips.forEach { eyePath.appendOval(in: $0) }
+                eyePath.addClip()
+                blink.draw(in: pet.poseBounds)
+                NSGraphicsContext.restoreGraphicsState()
+            }
         }
+    }
+}
+
+private struct PetFrame {
+    let image: NSImage
+    let source: NSRect
+    func draw(in destination: NSRect) {
+        image.draw(in: destination, from: source, operation: .sourceOver, fraction: 1)
     }
 }
 
 private final class PetImages {
     let rest: NSImage
+    let blinkHalf: NSImage
     let blink: NSImage
-    let walk: NSImage
+    let walk: [PetFrame]
     let sideLook: NSImage
     let sideLie: NSImage
-    let groom: NSImage
+    let groom: [PetFrame]
+    let poseBounds = NSRect(x: 10, y: 10, width: 180, height: 120)
+    let walkBounds: NSRect
+    let groomBounds: NSRect
+    let blinkEyeClips: [NSRect]
 
     init(_ name: String) {
         func image(_ action: String) -> NSImage {
             NSImage(contentsOfFile: Bundle.main.path(forResource: "\(name)-\(action)", ofType: "png", inDirectory: "assets/cats")!)!
         }
-        rest = image("rest"); blink = image("blink"); walk = image("walk")
-        sideLook = image("side-look"); sideLie = image("side-lie"); groom = image("groom")
+        rest = image("rest")
+        blink = image("blink")
+        sideLook = image("side-look")
+        sideLie = image("side-lie")
+        if name == "niangao" {
+            blinkHalf = image("blink-half")
+            walk = (1...4).map { index in
+                let frame = image(String(format: "walk-%02d", index))
+                return PetFrame(image: frame, source: NSRect(origin: .zero, size: frame.size))
+            }
+            groom = (1...3).map { index in
+                let frame = image(String(format: "groom-%02d", index))
+                return PetFrame(image: frame, source: NSRect(origin: .zero, size: frame.size))
+            }
+            walkBounds = NSRect(x: 10, y: 10, width: 180, height: 120)
+            groomBounds = NSRect(x: 10, y: 10, width: 180, height: 120)
+            blinkEyeClips = [NSRect(x: 32, y: 62, width: 16, height: 13), NSRect(x: 55, y: 62, width: 17, height: 13)]
+        } else {
+            blinkHalf = blink
+            let walkSheet = image("walk")
+            let walkWidth = walkSheet.size.width / 4
+            walk = (0..<4).map { PetFrame(image: walkSheet, source: NSRect(x: CGFloat($0) * walkWidth, y: 120, width: walkWidth, height: 430)) }
+            let groomSheet = image("groom")
+            let groomWidth = groomSheet.size.width / 3
+            groom = (0..<3).map { PetFrame(image: groomSheet, source: NSRect(x: CGFloat($0) * groomWidth, y: 100, width: groomWidth, height: 540)) }
+            walkBounds = NSRect(x: 17, y: 4, width: 165, height: 131)
+            groomBounds = NSRect(x: 32, y: 28, width: 135, height: 100)
+            blinkEyeClips = [NSRect(x: 46, y: 69, width: 14, height: 12), NSRect(x: 69, y: 67, width: 14, height: 12)]
+        }
     }
 }

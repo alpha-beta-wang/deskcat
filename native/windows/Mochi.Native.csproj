@@ -11,18 +11,16 @@
     <ApplicationIcon>../../assets/icons/mochi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="TimingSelfTest.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="../../assets/cats/mochi-rest.png" Link="assets/cats/mochi-rest.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-blink.png" Link="assets/cats/mochi-blink.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-walk.png" Link="assets/cats/mochi-walk.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-side-look.png" Link="assets/cats/mochi-side-look.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-side-lie.png" Link="assets/cats/mochi-side-lie.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/cats/mochi-groom.png" Link="assets/cats/mochi-groom.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-rest.png" Link="assets/cats/niangao-rest.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-blink.png" Link="assets/cats/niangao-blink.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-walk.png" Link="assets/cats/niangao-walk.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-side-look.png" Link="assets/cats/niangao-side-look.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-side-lie.png" Link="assets/cats/niangao-side-lie.png" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../assets/cats/niangao-groom.png" Link="assets/cats/niangao-groom.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../assets/cats/niangao-*.png" Link="assets/cats/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../assets/icons/mochi.ico" Link="assets/icons/mochi.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

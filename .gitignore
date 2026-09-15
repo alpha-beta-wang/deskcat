@@ -4,6 +4,9 @@ native/windows/bin/
 native/windows/obj/
 .superpowers/
 *.log
+.venv/
+.uv-cache/
+.work/
 
 # Third-party assets are downloaded by each user (see README) — not redistributed.
 assets/cats/*
