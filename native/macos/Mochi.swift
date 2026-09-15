@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 final class MochiPanel: NSPanel {
-    var quiet = false { didSet { view.petView.quiet = quiet } }
+    var quiet = false { didSet { view.quiet = quiet } }
     var petName = "mochi" { didSet { view.petName = petName } }
     private var dragOffset = NSPoint.zero
     private var view: PetHostView { contentView as! PetHostView }
@@ -72,7 +72,7 @@ final class MochiPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override func mouseDown(with event: NSEvent) { dragOffset = event.locationInWindow }
     override func mouseDragged(with event: NSEvent) {
-        let screen = event.locationInScreen
+        let screen = NSEvent.mouseLocation
         setFrameOrigin(NSPoint(x: screen.x - dragOffset.x, y: screen.y - dragOffset.y))
     }
     override func rightMouseDown(with event: NSEvent) {
@@ -109,9 +109,9 @@ final class MochiPanel: NSPanel {
     }
     @objc private func setNormal() { quiet = false }
     @objc private func setQuiet() { quiet = true }
-    @objc private func sideLook() { view.sideLook() }
-    @objc private func sideLie() { view.sideLie() }
-    @objc private func groom() { view.groom() }
+    @objc func sideLook() { view.sideLook() }
+    @objc func sideLie() { view.sideLie() }
+    @objc func groom() { view.groom() }
     @objc private func selectMochi() { petName = "mochi" }
     @objc private func selectNiangao() { petName = "niangao" }
     @objc private func quit() { NSApp.terminate(nil) }
