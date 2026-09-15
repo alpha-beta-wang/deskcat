@@ -71,19 +71,7 @@ internal sealed class MochiForm : Form
         _nextBlink = DateTime.UtcNow.AddSeconds(4 + _random.Next(5));
         _nextMicroAction = DateTime.UtcNow.AddSeconds(18 + _random.Next(18));
 
-        var menu = new ContextMenuStrip();
-        var normal = new ToolStripMenuItem("普通模式", null, (_, _) => SetQuiet(false)) { Checked = true };
-        var quiet = new ToolStripMenuItem("安静模式", null, (_, _) => SetQuiet(true));
-        menu.Items.Add(normal);
-        menu.Items.Add(quiet);
-        var actions = new ToolStripMenuItem("做个动作");
-        actions.DropDownItems.Add("侧头看看", null, (_, _) => StartMicroAction(MicroAction.SideLook));
-        actions.DropDownItems.Add("躺一会", null, (_, _) => StartMicroAction(MicroAction.SideLie));
-        actions.DropDownItems.Add("舔舔爪", null, (_, _) => StartMicroAction(MicroAction.Groom));
-        menu.Items.Add(actions);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => Close());
-        menu.Opening += (_, _) => { normal.Checked = !_quiet; quiet.Checked = _quiet; };
+        var menu = CreateMenu();
         ContextMenuStrip = menu;
         _tray = new NotifyIcon { Icon = _appIcon, Text = "Mochi", Visible = true, ContextMenuStrip = menu };
         _tray.DoubleClick += (_, _) => Show();
@@ -116,6 +104,50 @@ internal sealed class MochiForm : Form
         _timer.Interval = 250;
         RenderSurface();
     }
+
+    private ContextMenuStrip CreateMenu()
+    {
+        var menu = new ContextMenuStrip
+        {
+            Renderer = new MochiMenuRenderer(),
+            ShowImageMargin = false,
+            ShowCheckMargin = true,
+            Font = new Font("Microsoft YaHei UI", 9F),
+            Padding = new Padding(7, 7, 7, 7),
+        };
+        var title = new ToolStripMenuItem("🐾  麻薯  ·  Mochi") { Enabled = false, AutoSize = false, Size = new Size(244, 30) };
+        var status = new ToolStripMenuItem { Enabled = false, AutoSize = false, Size = new Size(244, 26) };
+        var normal = new ToolStripMenuItem("✨  普通模式", null, (_, _) => SetQuiet(false));
+        var quiet = new ToolStripMenuItem("🌙  安静模式", null, (_, _) => SetQuiet(true));
+        var actions = new ToolStripMenuItem("✦  做个动作");
+        actions.DropDownItems.Add("👀  侧头看看", null, (_, _) => StartMicroAction(MicroAction.SideLook));
+        actions.DropDownItems.Add("☁  躺一会", null, (_, _) => StartMicroAction(MicroAction.SideLie));
+        actions.DropDownItems.Add("✦  舔舔爪", null, (_, _) => StartMicroAction(MicroAction.Groom));
+        var quit = new ToolStripMenuItem("退出 Mochi", null, (_, _) => Close());
+        menu.Items.Add(title);
+        menu.Items.Add(status);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(normal);
+        menu.Items.Add(quiet);
+        menu.Items.Add(actions);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(quit);
+        menu.Opening += (_, _) =>
+        {
+            normal.Checked = !_quiet;
+            quiet.Checked = _quiet;
+            status.Text = _quiet ? "   当前状态：安静休息" : _walking ? "   当前状态：散步中" : _microAction == MicroAction.None ? "   当前状态：自在发呆" : "   当前状态：" + ActionLabel(_microAction);
+        };
+        return menu;
+    }
+
+    private static string ActionLabel(MicroAction action) => action switch
+    {
+        MicroAction.SideLook => "侧头看看",
+        MicroAction.SideLie => "躺一会",
+        MicroAction.Groom => "舔舔爪",
+        _ => "自在发呆",
+    };
 
     private void Tick()
     {
@@ -302,4 +334,35 @@ internal sealed class MochiForm : Form
     [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hdc);
     [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr obj);
+}
+
+internal sealed class MochiMenuRenderer : ToolStripProfessionalRenderer
+{
+    public MochiMenuRenderer() : base(new MochiMenuColorTable()) { }
+
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+    {
+        e.TextColor = e.Item.Enabled ? Color.FromArgb(245, 242, 250) : Color.FromArgb(176, 169, 194);
+        base.OnRenderItemText(e);
+    }
+}
+
+internal sealed class MochiMenuColorTable : ProfessionalColorTable
+{
+    private static readonly Color Surface = Color.FromArgb(40, 38, 59);
+    public override Color ToolStripDropDownBackground => Surface;
+    public override Color MenuBorder => Color.FromArgb(86, 80, 112);
+    public override Color MenuItemSelected => Color.FromArgb(78, 70, 106);
+    public override Color MenuItemSelectedGradientBegin => Color.FromArgb(78, 70, 106);
+    public override Color MenuItemSelectedGradientEnd => Color.FromArgb(66, 61, 92);
+    public override Color MenuItemBorder => Color.FromArgb(128, 114, 164);
+    public override Color MenuItemPressedGradientBegin => Color.FromArgb(66, 61, 92);
+    public override Color MenuItemPressedGradientEnd => Color.FromArgb(66, 61, 92);
+    public override Color SeparatorDark => Color.FromArgb(78, 72, 100);
+    public override Color SeparatorLight => Surface;
+    public override Color CheckBackground => Color.FromArgb(99, 87, 141);
+    public override Color CheckSelectedBackground => Color.FromArgb(122, 105, 173);
+    public override Color ImageMarginGradientBegin => Surface;
+    public override Color ImageMarginGradientMiddle => Surface;
+    public override Color ImageMarginGradientEnd => Surface;
 }

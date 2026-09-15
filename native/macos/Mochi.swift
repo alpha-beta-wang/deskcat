@@ -12,8 +12,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "🐾"
         let menu = NSMenu()
-        menu.addItem(withTitle: "普通模式", action: #selector(normalMode), keyEquivalent: "")
-        menu.addItem(withTitle: "安静模式", action: #selector(quietMode), keyEquivalent: "")
+        let title = NSMenuItem(title: "🐾  麻薯  ·  Mochi", action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
+        let status = NSMenuItem(title: "   当前状态：自在发呆", action: nil, keyEquivalent: "")
+        status.isEnabled = false
+        menu.addItem(status)
+        menu.addItem(.separator())
+        let normal = NSMenuItem(title: "✨  普通模式", action: #selector(normalMode), keyEquivalent: "")
+        normal.state = .on
+        menu.addItem(normal)
+        menu.addItem(withTitle: "🌙  安静模式", action: #selector(quietMode), keyEquivalent: "")
+        let actions = NSMenuItem(title: "✦  做个动作", action: nil, keyEquivalent: "")
+        let actionMenu = NSMenu(title: "做个动作")
+        actionMenu.addItem(withTitle: "👀  侧头看看", action: #selector(sideLook), keyEquivalent: "")
+        actionMenu.addItem(withTitle: "☁  躺一会", action: #selector(sideLie), keyEquivalent: "")
+        actionMenu.addItem(withTitle: "✦  舔舔爪", action: #selector(groom), keyEquivalent: "")
+        actions.submenu = actionMenu
+        menu.addItem(actions)
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出 Mochi", action: #selector(quit), keyEquivalent: "q")
         statusItem.menu = menu
@@ -21,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func normalMode() { pet.quiet = false }
     @objc private func quietMode() { pet.quiet = true }
+    @objc private func sideLook() { pet.sideLook() }
+    @objc private func sideLie() { pet.sideLie() }
+    @objc private func groom() { pet.groom() }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
@@ -49,14 +68,35 @@ final class MochiPanel: NSPanel {
     }
     override func rightMouseDown(with event: NSEvent) {
         let menu = NSMenu()
-        menu.addItem(withTitle: "普通模式", action: #selector(setNormal), keyEquivalent: "")
-        menu.addItem(withTitle: "安静模式", action: #selector(setQuiet), keyEquivalent: "")
+        let title = NSMenuItem(title: "🐾  麻薯  ·  Mochi", action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
+        let status = NSMenuItem(title: quiet ? "   当前状态：安静休息" : "   当前状态：自在发呆", action: nil, keyEquivalent: "")
+        status.isEnabled = false
+        menu.addItem(status)
+        menu.addItem(.separator())
+        let normal = NSMenuItem(title: "✨  普通模式", action: #selector(setNormal), keyEquivalent: "")
+        normal.state = quiet ? .off : .on
+        menu.addItem(normal)
+        let quietItem = NSMenuItem(title: "🌙  安静模式", action: #selector(setQuiet), keyEquivalent: "")
+        quietItem.state = quiet ? .on : .off
+        menu.addItem(quietItem)
+        let actions = NSMenuItem(title: "✦  做个动作", action: nil, keyEquivalent: "")
+        let actionMenu = NSMenu(title: "做个动作")
+        actionMenu.addItem(withTitle: "👀  侧头看看", action: #selector(sideLook), keyEquivalent: "")
+        actionMenu.addItem(withTitle: "☁  躺一会", action: #selector(sideLie), keyEquivalent: "")
+        actionMenu.addItem(withTitle: "✦  舔舔爪", action: #selector(groom), keyEquivalent: "")
+        actions.submenu = actionMenu
+        menu.addItem(actions)
         menu.addItem(.separator())
         menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "")
         NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
     @objc private func setNormal() { quiet = false }
     @objc private func setQuiet() { quiet = true }
+    @objc private func sideLook() { view.sideLook() }
+    @objc private func sideLie() { view.sideLie() }
+    @objc private func groom() { view.groom() }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
@@ -120,6 +160,21 @@ final class PetHostView: NSView {
         }
         if walking || Date() < blinkUntil { changed = true }
         if changed { needsDisplay = true }
+    }
+
+    func sideLook() { start(.sideLook) }
+    func sideLie() { start(.sideLie) }
+    func groom() { start(.groom) }
+
+    private func start(_ next: MicroAction) {
+        guard !quiet else { return }
+        let now = Date()
+        walking = false
+        action = next
+        actionEnds = now.addingTimeInterval(next == .sideLook ? 3 : next == .sideLie ? 7 : 5)
+        groomFrame = 0
+        nextGroomFrame = now
+        needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
