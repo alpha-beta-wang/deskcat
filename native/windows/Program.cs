@@ -342,26 +342,26 @@ internal sealed class MochiMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        e.TextColor = e.Item.Enabled ? Color.FromArgb(245, 242, 250) : Color.FromArgb(176, 169, 194);
+        e.TextColor = e.Item.Enabled ? Color.FromArgb(48, 45, 61) : Color.FromArgb(132, 126, 146);
         base.OnRenderItemText(e);
     }
 }
 
 internal sealed class MochiMenuColorTable : ProfessionalColorTable
 {
-    private static readonly Color Surface = Color.FromArgb(40, 38, 59);
+    private static readonly Color Surface = Color.FromArgb(255, 252, 255);
     public override Color ToolStripDropDownBackground => Surface;
-    public override Color MenuBorder => Color.FromArgb(86, 80, 112);
-    public override Color MenuItemSelected => Color.FromArgb(78, 70, 106);
-    public override Color MenuItemSelectedGradientBegin => Color.FromArgb(78, 70, 106);
-    public override Color MenuItemSelectedGradientEnd => Color.FromArgb(66, 61, 92);
-    public override Color MenuItemBorder => Color.FromArgb(128, 114, 164);
-    public override Color MenuItemPressedGradientBegin => Color.FromArgb(66, 61, 92);
-    public override Color MenuItemPressedGradientEnd => Color.FromArgb(66, 61, 92);
-    public override Color SeparatorDark => Color.FromArgb(78, 72, 100);
+    public override Color MenuBorder => Color.FromArgb(220, 211, 231);
+    public override Color MenuItemSelected => Color.FromArgb(239, 233, 249);
+    public override Color MenuItemSelectedGradientBegin => Color.FromArgb(244, 239, 252);
+    public override Color MenuItemSelectedGradientEnd => Color.FromArgb(235, 229, 247);
+    public override Color MenuItemBorder => Color.FromArgb(206, 192, 226);
+    public override Color MenuItemPressedGradientBegin => Color.FromArgb(231, 223, 244);
+    public override Color MenuItemPressedGradientEnd => Color.FromArgb(231, 223, 244);
+    public override Color SeparatorDark => Color.FromArgb(227, 220, 235);
     public override Color SeparatorLight => Surface;
-    public override Color CheckBackground => Color.FromArgb(99, 87, 141);
-    public override Color CheckSelectedBackground => Color.FromArgb(122, 105, 173);
+    public override Color CheckBackground => Color.FromArgb(220, 210, 239);
+    public override Color CheckSelectedBackground => Color.FromArgb(205, 191, 232);
     public override Color ImageMarginGradientBegin => Surface;
     public override Color ImageMarginGradientMiddle => Surface;
     public override Color ImageMarginGradientEnd => Surface;
