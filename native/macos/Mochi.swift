@@ -23,6 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         normal.state = .on
         menu.addItem(normal)
         menu.addItem(withTitle: "🌙  安静模式", action: #selector(quietMode), keyEquivalent: "")
+        let pets = NSMenuItem(title: "🐱  切换桌宠", action: nil, keyEquivalent: "")
+        let petMenu = NSMenu(title: "切换桌宠")
+        petMenu.addItem(withTitle: "🐾  麻薯", action: #selector(selectMochi), keyEquivalent: "")
+        petMenu.addItem(withTitle: "🐾  年糕", action: #selector(selectNiangao), keyEquivalent: "")
+        pets.submenu = petMenu
+        menu.addItem(pets)
         let actions = NSMenuItem(title: "✦  做个动作", action: nil, keyEquivalent: "")
         let actionMenu = NSMenu(title: "做个动作")
         actionMenu.addItem(withTitle: "👀  侧头看看", action: #selector(sideLook), keyEquivalent: "")
@@ -40,11 +46,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func sideLook() { pet.sideLook() }
     @objc private func sideLie() { pet.sideLie() }
     @objc private func groom() { pet.groom() }
+    @objc private func selectMochi() { pet.petName = "mochi" }
+    @objc private func selectNiangao() { pet.petName = "niangao" }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
 final class MochiPanel: NSPanel {
     var quiet = false { didSet { view.petView.quiet = quiet } }
+    var petName = "mochi" { didSet { view.petName = petName } }
     private var dragOffset = NSPoint.zero
     private var view: PetHostView { contentView as! PetHostView }
 
@@ -81,6 +90,12 @@ final class MochiPanel: NSPanel {
         let quietItem = NSMenuItem(title: "🌙  安静模式", action: #selector(setQuiet), keyEquivalent: "")
         quietItem.state = quiet ? .on : .off
         menu.addItem(quietItem)
+        let pets = NSMenuItem(title: "🐱  切换桌宠", action: nil, keyEquivalent: "")
+        let petMenu = NSMenu(title: "切换桌宠")
+        petMenu.addItem(withTitle: "🐾  麻薯", action: #selector(selectMochi), keyEquivalent: "")
+        petMenu.addItem(withTitle: "🐾  年糕", action: #selector(selectNiangao), keyEquivalent: "")
+        pets.submenu = petMenu
+        menu.addItem(pets)
         let actions = NSMenuItem(title: "✦  做个动作", action: nil, keyEquivalent: "")
         let actionMenu = NSMenu(title: "做个动作")
         actionMenu.addItem(withTitle: "👀  侧头看看", action: #selector(sideLook), keyEquivalent: "")
@@ -97,18 +112,18 @@ final class MochiPanel: NSPanel {
     @objc private func sideLook() { view.sideLook() }
     @objc private func sideLie() { view.sideLie() }
     @objc private func groom() { view.groom() }
+    @objc private func selectMochi() { petName = "mochi" }
+    @objc private func selectNiangao() { petName = "niangao" }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
 final class PetHostView: NSView {
     private enum MicroAction { case none, sideLook, sideLie, groom }
     var quiet = false
-    private let rest = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-rest", ofType: "png", inDirectory: "assets/cats")!)!
-    private let blink = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-blink", ofType: "png", inDirectory: "assets/cats")!)!
-    private let walk = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-walk", ofType: "png", inDirectory: "assets/cats")!)!
-    private let sideLook = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-side-look", ofType: "png", inDirectory: "assets/cats")!)!
-    private let sideLie = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-side-lie", ofType: "png", inDirectory: "assets/cats")!)!
-    private let groom = NSImage(contentsOfFile: Bundle.main.path(forResource: "mochi-groom", ofType: "png", inDirectory: "assets/cats")!)!
+    var petName = "mochi" { didSet { needsDisplay = true } }
+    private let mochi = PetImages("mochi")
+    private let niangao = PetImages("niangao")
+    private var pet: PetImages { petName == "niangao" ? niangao : mochi }
     private var walking = false
     private var blinkUntil = Date.distantPast
     private var nextBlink = Date().addingTimeInterval(5)
@@ -181,14 +196,35 @@ final class PetHostView: NSView {
         NSColor.clear.setFill(); dirtyRect.fill()
         if walking {
             walkFrame = (walkFrame + 1) % 4
-            let frameWidth = walk.size.width / 4
-            walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: 120, width: frameWidth, height: 430), operation: .sourceOver, fraction: 1)
+            let frameWidth = pet.walk.size.width / 4
+            let sourceY: CGFloat = petName == "niangao" ? 0 : 120
+            let sourceHeight: CGFloat = petName == "niangao" ? pet.walk.size.height : 430
+            pet.walk.draw(in: NSRect(x: 17, y: 4, width: 165, height: 131), from: NSRect(x: CGFloat(walkFrame) * frameWidth, y: sourceY, width: frameWidth, height: sourceHeight), operation: .sourceOver, fraction: 1)
         } else if action == .groom {
-            let frameWidth = groom.size.width / 3
-            groom.draw(in: NSRect(x: 32, y: 28, width: 135, height: 100), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: 100, width: frameWidth, height: 540), operation: .sourceOver, fraction: 1)
+            let frameWidth = pet.groom.size.width / 3
+            let sourceY: CGFloat = petName == "niangao" ? 0 : 100
+            let sourceHeight: CGFloat = petName == "niangao" ? pet.groom.size.height : 540
+            pet.groom.draw(in: NSRect(x: 32, y: 28, width: 135, height: 100), from: NSRect(x: CGFloat(groomFrame) * frameWidth, y: sourceY, width: frameWidth, height: sourceHeight), operation: .sourceOver, fraction: 1)
         } else {
-            let pose = action == .sideLook ? sideLook : action == .sideLie ? sideLie : Date() < blinkUntil ? blink : rest
+            let pose = action == .sideLook ? pet.sideLook : action == .sideLie ? pet.sideLie : Date() < blinkUntil ? pet.blink : pet.rest
             pose.draw(in: NSRect(x: 10, y: 10, width: 180, height: 120), from: NSRect(x: 0, y: 0, width: pose.size.width, height: pose.size.height), operation: .sourceOver, fraction: 1)
         }
+    }
+}
+
+private final class PetImages {
+    let rest: NSImage
+    let blink: NSImage
+    let walk: NSImage
+    let sideLook: NSImage
+    let sideLie: NSImage
+    let groom: NSImage
+
+    init(_ name: String) {
+        func image(_ action: String) -> NSImage {
+            NSImage(contentsOfFile: Bundle.main.path(forResource: "\(name)-\(action)", ofType: "png", inDirectory: "assets/cats")!)!
+        }
+        rest = image("rest"); blink = image("blink"); walk = image("walk")
+        sideLook = image("side-look"); sideLie = image("side-lie"); groom = image("groom")
     }
 }

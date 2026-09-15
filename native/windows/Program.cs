@@ -18,14 +18,13 @@ internal static class Program
 internal sealed class MochiForm : Form
 {
     private enum MicroAction { None, SideLook, SideLie, Groom }
+    private enum PetKind { Mochi, Niangao }
     private const int WindowWidth = 200;
     private const int WindowHeight = 155;
-    private readonly Bitmap _rest;
-    private readonly Bitmap _blink;
-    private readonly Bitmap _walk;
-    private readonly Bitmap _sideLook;
-    private readonly Bitmap _sideLie;
-    private readonly Bitmap _groom;
+    private readonly PetAssets _mochi;
+    private readonly PetAssets _niangao;
+    private PetAssets _pet;
+    private PetKind _petKind = PetKind.Mochi;
     private readonly Bitmap _surface = new(WindowWidth, WindowHeight, PixelFormat.Format32bppArgb);
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly Random _random = new();
@@ -38,6 +37,9 @@ internal sealed class MochiForm : Form
     private ToolStripMenuItem? _menuStatus;
     private ToolStripMenuItem? _normalMenuItem;
     private ToolStripMenuItem? _quietMenuItem;
+    private ToolStripMenuItem? _menuTitle;
+    private ToolStripMenuItem? _mochiMenuItem;
+    private ToolStripMenuItem? _niangaoMenuItem;
     private int _menuButtonsDown;
     private Point _dragOffset;
     private bool _dragging;
@@ -69,12 +71,9 @@ internal sealed class MochiForm : Form
         var assets = Path.Combine(AppContext.BaseDirectory, "assets", "cats");
         _appIcon = new Icon(Path.Combine(AppContext.BaseDirectory, "assets", "icons", "mochi.ico"));
         Icon = _appIcon;
-        _rest = new Bitmap(Path.Combine(assets, "mochi-rest.png"));
-        _blink = new Bitmap(Path.Combine(assets, "mochi-blink.png"));
-        _walk = new Bitmap(Path.Combine(assets, "mochi-walk.png"));
-        _sideLook = new Bitmap(Path.Combine(assets, "mochi-side-look.png"));
-        _sideLie = new Bitmap(Path.Combine(assets, "mochi-side-lie.png"));
-        _groom = new Bitmap(Path.Combine(assets, "mochi-groom.png"));
+        _mochi = new PetAssets(assets, "mochi");
+        _niangao = new PetAssets(assets, "niangao");
+        _pet = _mochi;
         _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
         _nextBlink = DateTime.UtcNow.AddSeconds(4 + _random.Next(5));
         _nextMicroAction = DateTime.UtcNow.AddSeconds(18 + _random.Next(18));
@@ -129,6 +128,11 @@ internal sealed class MochiForm : Form
         var status = new ToolStripMenuItem { Enabled = false, AutoSize = false, Size = new Size(244, 26) };
         var normal = new ToolStripMenuItem("✨  普通模式", null, (_, _) => SetQuiet(false));
         var quiet = new ToolStripMenuItem("🌙  安静模式", null, (_, _) => SetQuiet(true));
+        var pets = new ToolStripMenuItem("🐱  切换桌宠");
+        var mochi = new ToolStripMenuItem("🐾  麻薯", null, (_, _) => SelectPet(PetKind.Mochi));
+        var niangao = new ToolStripMenuItem("🐾  年糕", null, (_, _) => SelectPet(PetKind.Niangao));
+        pets.DropDownItems.Add(mochi);
+        pets.DropDownItems.Add(niangao);
         var actions = new ToolStripMenuItem("✦  做个动作");
         actions.DropDownItems.Add("👀  侧头看看", null, (_, _) => StartMicroAction(MicroAction.SideLook));
         actions.DropDownItems.Add("☁  躺一会", null, (_, _) => StartMicroAction(MicroAction.SideLie));
@@ -138,11 +142,15 @@ internal sealed class MochiForm : Form
         _menuStatus = status;
         _normalMenuItem = normal;
         _quietMenuItem = quiet;
+        _menuTitle = title;
+        _mochiMenuItem = mochi;
+        _niangaoMenuItem = niangao;
         menu.Items.Add(title);
         menu.Items.Add(status);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(normal);
         menu.Items.Add(quiet);
+        menu.Items.Add(pets);
         menu.Items.Add(actions);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(quit);
@@ -166,6 +174,27 @@ internal sealed class MochiForm : Form
         if (_menuStatus.Text != text) _menuStatus.Text = text;
         _normalMenuItem.Checked = !_quiet;
         _quietMenuItem.Checked = _quiet;
+        if (_menuTitle != null) _menuTitle.Text = _petKind == PetKind.Mochi ? "🐾  麻薯  ·  Mochi" : "🐾  年糕  ·  Niangao";
+        if (_mochiMenuItem != null) _mochiMenuItem.Checked = _petKind == PetKind.Mochi;
+        if (_niangaoMenuItem != null) _niangaoMenuItem.Checked = _petKind == PetKind.Niangao;
+    }
+
+    private void SelectPet(PetKind kind)
+    {
+        if (_petKind == kind) return;
+        _petKind = kind;
+        _pet = kind == PetKind.Mochi ? _mochi : _niangao;
+        _walking = false;
+        _microAction = MicroAction.None;
+        _blinkEnds = default;
+        var now = DateTime.UtcNow;
+        _nextWalk = now.AddSeconds(40 + _random.Next(41));
+        _nextMicroAction = now.AddSeconds(18 + _random.Next(18));
+        _nextBlink = now.AddSeconds(4 + _random.Next(5));
+        _timer.Interval = 250;
+        _tray.Text = kind == PetKind.Mochi ? "Mochi · 麻薯" : "Niangao · 年糕";
+        RenderSurface();
+        RefreshMenuState(force: true);
     }
 
     private void MonitorOpenMenu()
@@ -300,37 +329,44 @@ internal sealed class MochiForm : Form
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             if (_walking)
             {
-                var frameWidth = _walk.Width / 4;
+                var frameWidth = _pet.Walk.Width / 4;
                 if (_facingRight)
                 {
                     g.TranslateTransform(WindowWidth, 0);
                     g.ScaleTransform(-1, 1);
                 }
-                g.DrawImage(_walk, new Rectangle(17, 12, 165, 131), _walkFrame * frameWidth, 120, frameWidth, 430, GraphicsUnit.Pixel);
+                g.DrawImage(_pet.Walk, new Rectangle(17, 12, 165, 131), _walkFrame * frameWidth, _pet.WalkSourceY, frameWidth, _pet.WalkSourceHeight, GraphicsUnit.Pixel);
                 if (_facingRight) g.ResetTransform();
             }
             else if (_microAction == MicroAction.Groom)
             {
-                var frameWidth = _groom.Width / 3;
+                var frameWidth = _pet.Groom.Width / 3;
                 // Grooming is deliberately a little smaller than the resting pose;
                 // its raised paw must not make Mochi visually "pop" larger.
-                g.DrawImage(_groom, new Rectangle(32, 28, 135, 100), _groomFrame * frameWidth, 100, frameWidth, 540, GraphicsUnit.Pixel);
+                g.DrawImage(_pet.Groom, new Rectangle(32, 28, 135, 100), _groomFrame * frameWidth, _pet.GroomSourceY, frameWidth, _pet.GroomSourceHeight, GraphicsUnit.Pixel);
             }
             else
             {
-                var pose = _microAction == MicroAction.SideLook ? _sideLook : _microAction == MicroAction.SideLie ? _sideLie : _rest;
+                var pose = _microAction == MicroAction.SideLook ? _pet.SideLook : _microAction == MicroAction.SideLie ? _pet.SideLie : _pet.Rest;
                 g.DrawImage(pose, new Rectangle(10, 18, 180, 120), 0, 0, pose.Width, pose.Height, GraphicsUnit.Pixel);
                 if (_microAction == MicroAction.None && _blinkEnds > DateTime.UtcNow)
                 {
-                    // The generated closed-eye pose has a slightly different body silhouette.
-                    // Restrict it to two oval eye regions so Mochi's back cannot "pop".
-                    using var eyes = new GraphicsPath();
-                    eyes.AddEllipse(46, 54, 14, 12);
-                    eyes.AddEllipse(69, 56, 14, 12);
-                    var saved = g.Save();
-                    g.SetClip(eyes);
-                    g.DrawImage(_blink, new Rectangle(10, 18, 180, 120), 0, 0, _blink.Width, _blink.Height, GraphicsUnit.Pixel);
-                    g.Restore(saved);
+                    if (_pet.UseEyeClip)
+                    {
+                        // Mochi's generated closed-eye pose has a slightly different body silhouette.
+                        // Restrict it to two oval eye regions so Mochi's back cannot "pop".
+                        using var eyes = new GraphicsPath();
+                        eyes.AddEllipse(46, 54, 14, 12);
+                        eyes.AddEllipse(69, 56, 14, 12);
+                        var saved = g.Save();
+                        g.SetClip(eyes);
+                        g.DrawImage(_pet.Blink, new Rectangle(10, 18, 180, 120), 0, 0, _pet.Blink.Width, _pet.Blink.Height, GraphicsUnit.Pixel);
+                        g.Restore(saved);
+                    }
+                    else
+                    {
+                        g.DrawImage(_pet.Blink, new Rectangle(10, 18, 180, 120), 0, 0, _pet.Blink.Width, _pet.Blink.Height, GraphicsUnit.Pixel);
+                    }
                 }
             }
         }
@@ -352,7 +388,7 @@ internal sealed class MochiForm : Form
     }
 
     protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
-    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _menuMonitorTimer.Dispose(); _tray.Dispose(); _appIcon.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _menuMonitorTimer.Dispose(); _tray.Dispose(); _appIcon.Dispose(); _mochi.Dispose(); _niangao.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
 
     protected override void WndProc(ref Message m)
     {
@@ -390,6 +426,42 @@ internal sealed class MochiForm : Form
     [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hdc);
     [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr obj);
+}
+
+internal sealed class PetAssets : IDisposable
+{
+    public Bitmap Rest { get; }
+    public Bitmap Blink { get; }
+    public Bitmap Walk { get; }
+    public Bitmap SideLook { get; }
+    public Bitmap SideLie { get; }
+    public Bitmap Groom { get; }
+    public int WalkSourceY { get; }
+    public int WalkSourceHeight { get; }
+    public int GroomSourceY { get; }
+    public int GroomSourceHeight { get; }
+    public bool UseEyeClip { get; }
+
+    public PetAssets(string assets, string name)
+    {
+        Rest = new Bitmap(Path.Combine(assets, $"{name}-rest.png"));
+        Blink = new Bitmap(Path.Combine(assets, $"{name}-blink.png"));
+        Walk = new Bitmap(Path.Combine(assets, $"{name}-walk.png"));
+        SideLook = new Bitmap(Path.Combine(assets, $"{name}-side-look.png"));
+        SideLie = new Bitmap(Path.Combine(assets, $"{name}-side-lie.png"));
+        Groom = new Bitmap(Path.Combine(assets, $"{name}-groom.png"));
+        var generatedSheet = name == "niangao";
+        WalkSourceY = generatedSheet ? 0 : 120;
+        WalkSourceHeight = generatedSheet ? Walk.Height : 430;
+        GroomSourceY = generatedSheet ? 0 : 100;
+        GroomSourceHeight = generatedSheet ? Groom.Height : 540;
+        UseEyeClip = !generatedSheet;
+    }
+
+    public void Dispose()
+    {
+        Rest.Dispose(); Blink.Dispose(); Walk.Dispose(); SideLook.Dispose(); SideLie.Dispose(); Groom.Dispose();
+    }
 }
 
 internal sealed class MochiMenuRenderer : ToolStripProfessionalRenderer

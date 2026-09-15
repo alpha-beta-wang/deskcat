@@ -5,7 +5,7 @@ rm -rf "$out"
 mkdir -p "$out/Mochi.app/Contents/MacOS" "$out/Mochi.app/Contents/Resources/assets/cats"
 mkdir -p "$out/Mochi.app/Contents/Resources/Mochi.iconset"
 swiftc Mochi.swift -framework AppKit -o "$out/Mochi.app/Contents/MacOS/Mochi"
-cp ../../assets/cats/mochi-*.png "$out/Mochi.app/Contents/Resources/assets/cats/"
+cp ../../assets/cats/mochi-*.png ../../assets/cats/niangao-*.png "$out/Mochi.app/Contents/Resources/assets/cats/"
 cp Info.plist "$out/Mochi.app/Contents/Info.plist"
 sips -z 16 16 ../../assets/icons/mochi-icon.png --out "$out/Mochi.app/Contents/Resources/Mochi.iconset/icon_16x16.png" >/dev/null
 sips -z 32 32 ../../assets/icons/mochi-icon.png --out "$out/Mochi.app/Contents/Resources/Mochi.iconset/icon_16x16@2x.png" >/dev/null
