@@ -31,6 +31,14 @@ internal sealed class MochiForm : Form
     private readonly Random _random = new();
     private readonly NotifyIcon _tray;
     private readonly Icon _appIcon;
+    // This timer exists only while a context menu is open. It lets the
+    // non-activating layered sprite dismiss its menu on a desktop click.
+    private readonly System.Windows.Forms.Timer _menuMonitorTimer = new() { Interval = 100 };
+    private ContextMenuStrip? _menu;
+    private ToolStripMenuItem? _menuStatus;
+    private ToolStripMenuItem? _normalMenuItem;
+    private ToolStripMenuItem? _quietMenuItem;
+    private int _menuButtonsDown;
     private Point _dragOffset;
     private bool _dragging;
     private bool _quiet;
@@ -78,6 +86,7 @@ internal sealed class MochiForm : Form
 
         _timer.Interval = 250; // idle is event-driven; no continuous 60 FPS renderer
         _timer.Tick += (_, _) => Tick();
+        _menuMonitorTimer.Tick += (_, _) => MonitorOpenMenu();
         _timer.Start();
         RenderSurface();
     }
@@ -103,6 +112,7 @@ internal sealed class MochiForm : Form
         _nextWalk = DateTime.UtcNow.AddSeconds(40 + _random.Next(41));
         _timer.Interval = 250;
         RenderSurface();
+        RefreshMenuState();
     }
 
     private ContextMenuStrip CreateMenu()
@@ -124,6 +134,10 @@ internal sealed class MochiForm : Form
         actions.DropDownItems.Add("☁  躺一会", null, (_, _) => StartMicroAction(MicroAction.SideLie));
         actions.DropDownItems.Add("✦  舔舔爪", null, (_, _) => StartMicroAction(MicroAction.Groom));
         var quit = new ToolStripMenuItem("退出 Mochi", null, (_, _) => Close());
+        _menu = menu;
+        _menuStatus = status;
+        _normalMenuItem = normal;
+        _quietMenuItem = quiet;
         menu.Items.Add(title);
         menu.Items.Add(status);
         menu.Items.Add(new ToolStripSeparator());
@@ -134,11 +148,48 @@ internal sealed class MochiForm : Form
         menu.Items.Add(quit);
         menu.Opening += (_, _) =>
         {
-            normal.Checked = !_quiet;
-            quiet.Checked = _quiet;
-            status.Text = _quiet ? "   当前状态：安静休息" : _walking ? "   当前状态：散步中" : _microAction == MicroAction.None ? "   当前状态：自在发呆" : "   当前状态：" + ActionLabel(_microAction);
+            RefreshMenuState(force: true);
+            _menuButtonsDown = PressedMouseButtons();
+            _menuMonitorTimer.Start();
         };
+        menu.Closed += (_, _) => _menuMonitorTimer.Stop();
         return menu;
+    }
+
+    // State is pushed only at state transitions; there is no polling just to
+    // update a label. The short-lived monitor above is solely for dismissing
+    // a non-activating popup after an outside click.
+    private void RefreshMenuState(bool force = false)
+    {
+        if (_menuStatus == null || _normalMenuItem == null || _quietMenuItem == null || (!force && _menu?.Visible != true)) return;
+        var text = _quiet ? "   当前状态：安静休息" : _walking ? "   当前状态：散步中" : _microAction == MicroAction.None ? "   当前状态：自在发呆" : "   当前状态：" + ActionLabel(_microAction);
+        if (_menuStatus.Text != text) _menuStatus.Text = text;
+        _normalMenuItem.Checked = !_quiet;
+        _quietMenuItem.Checked = _quiet;
+    }
+
+    private void MonitorOpenMenu()
+    {
+        if (_menu?.Visible != true) { _menuMonitorTimer.Stop(); return; }
+        var buttons = PressedMouseButtons();
+        if ((buttons & ~_menuButtonsDown) != 0 && !PointerIsInOpenMenu(Cursor.Position)) _menu.Close();
+        _menuButtonsDown = buttons;
+    }
+
+    private bool PointerIsInOpenMenu(Point point)
+    {
+        if (_menu?.Bounds.Contains(point) == true) return true;
+        return _menu?.Items.OfType<ToolStripMenuItem>().Any(item => item.DropDown.Visible && item.DropDown.Bounds.Contains(point)) == true;
+    }
+
+    private static int PressedMouseButtons()
+    {
+        const int VK_LBUTTON = 0x01, VK_RBUTTON = 0x02, VK_MBUTTON = 0x04;
+        var result = 0;
+        if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0) result |= VK_LBUTTON;
+        if ((GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0) result |= VK_RBUTTON;
+        if ((GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0) result |= VK_MBUTTON;
+        return result;
     }
 
     private static string ActionLabel(MicroAction action) => action switch
@@ -164,6 +215,7 @@ internal sealed class MochiForm : Form
             _walkFrame = 0;
             _nextWalkFrame = now;
             _timer.Interval = 33;
+            RefreshMenuState();
             changed = true;
         }
         if (_walking)
@@ -178,6 +230,7 @@ internal sealed class MochiForm : Form
                 _walkFrame = 0;
                 _nextWalk = now.AddSeconds(40 + _random.Next(41));
                 _timer.Interval = 250;
+                RefreshMenuState();
             }
         }
         if (!_quiet && !_walking && _microAction == MicroAction.None && now >= _nextMicroAction)
@@ -198,6 +251,7 @@ internal sealed class MochiForm : Form
                 _microAction = MicroAction.None;
                 _nextMicroAction = now.AddSeconds(18 + _random.Next(18));
                 _timer.Interval = 250;
+                RefreshMenuState();
                 changed = true;
             }
         }
@@ -235,6 +289,7 @@ internal sealed class MochiForm : Form
         _nextGroomFrame = now;
         _timer.Interval = action == MicroAction.Groom ? 80 : 250;
         RenderSurface();
+        RefreshMenuState();
     }
 
     private void RenderSurface()
@@ -297,7 +352,7 @@ internal sealed class MochiForm : Form
     }
 
     protected override void OnMouseUp(MouseEventArgs e) { _dragging = false; base.OnMouseUp(e); }
-    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _tray.Dispose(); _appIcon.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
+    protected override void OnFormClosed(FormClosedEventArgs e) { _timer.Dispose(); _menuMonitorTimer.Dispose(); _tray.Dispose(); _appIcon.Dispose(); _rest.Dispose(); _blink.Dispose(); _walk.Dispose(); _sideLook.Dispose(); _sideLie.Dispose(); _groom.Dispose(); _surface.Dispose(); base.OnFormClosed(e); }
 
     protected override void WndProc(ref Message m)
     {
@@ -328,6 +383,7 @@ internal sealed class MochiForm : Form
     [StructLayout(LayoutKind.Sequential)] private struct SIZE { public int cx, cy; public SIZE(int x, int y) { cx = x; cy = y; } }
     [StructLayout(LayoutKind.Sequential, Pack = 1)] private struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; public BLENDFUNCTION(byte op, byte flags, byte alpha, byte format) { BlendOp = op; BlendFlags = flags; SourceConstantAlpha = alpha; AlphaFormat = format; } }
     [DllImport("user32.dll", SetLastError = true)] private static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc, ref POINT pprSrc, int crKey, ref BLENDFUNCTION blend, int flags);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
